@@ -1,2 +1,3 @@
 # Processor-modelling
-Processor modeling using queueing theory.
+This is a bachelor thesis about the modelling of multi-core processors using
+models from queueing theory.
