@@ -3,6 +3,8 @@ PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/'
 ACCESS_DATA_PATH = PATH + 'data/dram_access_data/'
 
 NUMPY_FILES_PATH = PATH + 'tests/numpy_files/'
+ONE_GHZ_DATA_FILE_NUMBER = 106
+
 
 BENCHMARKS = [
             'parsec-blackscholes',
@@ -28,6 +30,8 @@ BENCHMARKS = [
             'splash2-radix'
             ]
 
+MEM_CAPACITY = 6
 SERVICE_TIME = 45
 PROCESSING_TIME = 8
 MEM_TIME = SERVICE_TIME + PROCESSING_TIME
+

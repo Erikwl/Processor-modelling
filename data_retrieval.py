@@ -1,75 +1,43 @@
-from constants import ACCESS_DATA_PATH, NUMPY_FILES_PATH
+from constants import ACCESS_DATA_PATH, SERVICE_TIME, ONE_GHZ_DATA_FILE_NUMBER
 import numpy as np
 import matplotlib.pyplot as plt
 from time import time as current_time
-from scipy.optimize import curve_fit
 
-data_filenumber = 106
 
 def retrieve_data(nr):
     filename = ACCESS_DATA_PATH + 'dram_access_data_raw' + str(nr) + '.csv'
     return np.loadtxt(filename, dtype=np.uintc, skiprows=1, delimiter=',')
 
-# def convert_to_np_file(nr):
-#     np_filename = NUMPY_FILES_PATH + str(nr) + '.npy'
-#     with open(np_filename, 'wb') as f:
-#         np.save(f, retrieve_data_from_csv(nr))
-
-# def retrieve_data_from_np(nr):
-#     np_filename = NUMPY_FILES_PATH + str(nr) + '.npy'
-#     with open(np_filename, 'rb') as f:
-#         return np.load(f)
-
-def retrieve_accumulated_data(data, stepsize, start_time=0, end_time=-1):
-    filter = np.all([data[:,0] >= start_time, data[:,0] <= end_time], axis=0)
-    data = data[filter]
-    cores = np.unique(data[:,1])
-    if end_time == -1:
-        end_time = data[-1,0] # Last dram access
-    nr_bins = int(np.ceil((end_time - start_time) / stepsize))
-    timestamps = np.arange(start_time, end_time, stepsize)
-
-    count_accum = {core : np.zeros([nr_bins]) for core in cores}
-    latency_accum = {core : np.zeros([nr_bins]) for core in cores}
-    for t, core_id, latency in data:
-        index = int((t - start_time) / stepsize)
-        count_accum[core_id][index] += 1
-        latency_accum[core_id][index] += latency
-    latency_avg = {i : np.divide(latency_accum[i], count_accum[i], out=np.zeros_like(latency_accum[i]), where=count_accum[i]!=0) for i in cores}
-    return data, timestamps, count_accum, latency_avg
-
-
-def avg_dram_requests_v2(data, stepsize, start_time=0, end_time=-1):
+def retrieve_throughputs(data, stepsize, start_time=0, end_time=-1):
     if end_time == -1:
         end_time = data[-1,0] + data[-1,2] # Last dram access + latency
+
     filter = np.all([data[:,0] >= start_time, data[:,0] + data[:,2] <= end_time], axis=0)
     data = data[filter]
     cores = np.unique(data[:,1])
     nr_bins = int(np.ceil((end_time - start_time) / stepsize))
     timestamps = np.arange(start_time, end_time, stepsize)
 
-    count_accum = {core : np.zeros([nr_bins]) for core in cores}
-    latency_accum = {core : np.zeros([nr_bins]) for core in cores}
-    for t, core_id, latency in data:
-        index = int((t - start_time) / stepsize)
-        start = t - timestamps[index]
-        cur = start + latency
+    throughputs = {core : np.zeros([nr_bins]) for core in cores}
 
-        while cur:
-            if index >= len(count_accum[cores[0]]):
+    for t, core_id, latency in data:
+        execution_begin = t + latency - SERVICE_TIME
+        index = int((execution_begin - start_time) / stepsize)
+        start = execution_begin - timestamps[index]
+        end = start + SERVICE_TIME
+        # print(t, latency, execution_begin, throughputs)
+        while end:
+            if index >= nr_bins:
                 break
-            if cur + start >= stepsize:
-                count_accum[core_id][index] += (stepsize - start) / stepsize
-                latency_accum[core_id][index] += (stepsize - start) / stepsize * latency
-                cur -= (stepsize - start)
+            if end >= stepsize:
+                throughputs[core_id][index] += (stepsize - start) / SERVICE_TIME
+                end -= stepsize
                 start = 0
                 index += 1
             else:
-                count_accum[core_id][index] += (cur - start) / stepsize
-                latency_accum[core_id][index] += (cur - start) / stepsize * latency
+                throughputs[core_id][index] += (end - start) / SERVICE_TIME
                 break
-    latency_avg = {i : np.divide(latency_accum[i], count_accum[i], out=np.zeros_like(latency_accum[i]), where=count_accum[i]!=0) for i in cores}
-    return data, timestamps, count_accum, latency_avg
+    return timestamps, throughputs
 
 def avg_dram_requests(data, stepsize, start_time=0, end_time=-1):
     if end_time == -1:
@@ -80,113 +48,97 @@ def avg_dram_requests(data, stepsize, start_time=0, end_time=-1):
     nr_bins = int(np.ceil((end_time - start_time) / stepsize))
     timestamps = np.arange(start_time, end_time, stepsize)
 
-    total_arrival_accum = {core : np.zeros([nr_bins]) for core in cores}
-    count_accum = {core : np.zeros([nr_bins]) for core in cores}
-    avg_count_accum = {core : np.zeros([nr_bins]) for core in cores}
-    latency_accum = {core : np.zeros([nr_bins]) for core in cores}
+    total_arrivals = {core : np.zeros([nr_bins]) for core in cores}
+    total_counts_for_arrivals = {core : np.zeros([nr_bins]) for core in cores}
+    avg_count = {core : np.zeros([nr_bins]) for core in cores}
+    total_latency = {core : np.zeros([nr_bins]) for core in cores}
+
     for t, core_id, latency in data:
-        x = 2.1105E7
-        if t >= x and t <= x + 5000:
-            print(t, latency)
         index = int((t - start_time) / stepsize)
         start = t - timestamps[index]
-        cur = start + latency
-        total_arrival_accum[core_id][index] += 1
-        latency_accum[core_id][index] += latency
-        count_accum[core_id][index] += avg_count_accum[core_id][index]
-        # print(t, core_id, latency, index, start, cur)
-        while cur:
-            if index >= len(count_accum[cores[0]]):
+        end = start + latency
+        total_arrivals[core_id][index] += 1
+        total_latency[core_id][index] += latency
+        total_counts_for_arrivals[core_id][index] += avg_count[core_id][index]
+        temp_index = index
+        while end:
+            if temp_index >= nr_bins:
                 break
-            if cur + start >= stepsize:
-                avg_count_accum[core_id][index] += (stepsize - start) / stepsize
-                # latency_accum[core_id][index] += (stepsize - start) / stepsize * latency
-                cur -= (stepsize - start)
+            if end >= stepsize:
+                avg_count[core_id][temp_index] += (stepsize - start) / stepsize
+                end -= stepsize
                 start = 0
-                index += 1
+                temp_index += 1
             else:
-                avg_count_accum[core_id][index] += (cur - start) / stepsize
-                # latency_accum[core_id][index] += (cur - start) / stepsize * latency
+                avg_count[core_id][temp_index] += (end - start) / stepsize
                 break
-    latency_avg = {i : np.divide(latency_accum[i], total_arrival_accum[i], out=np.zeros_like(total_arrival_accum[i]), where=total_arrival_accum[i]!=0) for i in cores}
-    count_accum = {i : np.divide(count_accum[i], total_arrival_accum[i], out=np.zeros_like(total_arrival_accum[i]), where=total_arrival_accum[i]!=0) for i in cores}
-    return data, timestamps, total_arrival_accum, count_accum, avg_count_accum, latency_avg
+    avg_latency = {i : np.divide(total_latency[i], total_arrivals[i], out=np.zeros_like(total_arrivals[i]), where=total_arrivals[i]!=0) for i in cores}
+    avg_counts_for_arrivals = {i : np.divide(total_counts_for_arrivals[i], total_arrivals[i], out=np.zeros_like(total_arrivals[i]), where=total_arrivals[i]!=0) for i in cores}
+    return data, timestamps, total_arrivals, avg_counts_for_arrivals, avg_count, avg_latency
 
 
-def plot_bar_chart(times, values, xlabel, ylabel, title=None):
-    plt.vlines(x=times, ymin=np.zeros(len(times)), ymax=values)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    if title:
-        plt.title(title)
 
-def plot_time_plots(data, stepsize, start_times, end_times):
-    start = current_time()
-    print(current_time() - start)
 
-    for start_time, end_time in zip(start_times, end_times):
-        data1, t, total_arrivals, count, avg_count, latency = avg_dram_requests(data, stepsize, start_time=start_time, end_time=end_time)
+def plot_time_plots(data, stepsizes, start_times, end_times, plot_total_arrivals=False):
+    def plot_bar_chart(subplot_num, t, vals, xlabel='',
+                       ylabel='', title=False, logscale=False, ticks=False, ymin=1E-1):
+        for index, core in enumerate(cores):
+            ax = fig.add_subplot(num_rows, len(cores), index + 1 + subplot_num * len(cores))
+            ax.vlines(x=t, ymin=np.zeros(len(t)), ymax=vals[core])
+
+            if logscale:
+                ax.set_yscale('log')
+                ax.set_ylim([ymin, 2 * max(vals[core])])
+            if not ticks:
+                ax.set_xticklabels([])
+            if xlabel:
+                ax.set_xlabel(xlabel)
+            if title:
+                ax.set_title(f'Core {core}')
+            if core == cores[0]:
+                ax.set_ylabel(ylabel)
+
+    num_rows = 4 if plot_total_arrivals else 3
+
+    for stepsize, start_time, end_time in zip(stepsizes, start_times, end_times):
+        fig = plt.figure(figsize=(8,8), dpi=150)
+        t, throughputs = retrieve_throughputs(data, stepsize, start_time, end_time)
+        data1, t, total_arrivals, avg_counts_for_arrivals, avg_counts, avg_latency = avg_dram_requests(data, stepsize, start_time=start_time, end_time=end_time)
         cores = np.unique(data1[:,1])
-        print(current_time() - start)
-        print('val=',max(avg_count[1]) / max(latency[1]))
 
-        fig = plt.figure(figsize=(10,6), dpi=150)
+        for core in cores:
+            total_arrivals[core] /= stepsize
+            throughputs[core] /= stepsize
 
-        for index, core in enumerate(cores):
-            # plot_bar_chart(t, count[core], 'time', 'count', f'core {core}')
-            ax = fig.add_subplot(int(f'2{len(cores)}{index + 1}'))
-            ax.vlines(x=t, ymin=np.zeros(len(t)), ymax=avg_count[core])
-
-            ax.set_yscale('log')
-            ax.set_ylim([1E-1, 2 * max(avg_count[core])])
-            ax.set_xticklabels([])
-
-            ax.set_title(f'core {core}')
-            if core == cores[0]:
-                ax.set_ylabel('average number of DRAM requests')
-
-        for index, core in enumerate(cores):
-            # plot_bar_chart(t, latency[core], 'time', 'latency', f'core {core}')
-            ax = fig.add_subplot(int(f'2{len(cores)}{index + 1 + len(cores)}'))
-            ax.vlines(x=t, ymin=np.zeros(len(t)), ymax=latency[core])
-
-            ax.set_yscale('log')
-            ax.set_ylim([10, 2 * max(latency[core])])
-
-            ax.set_xlabel('time (ns)')
-            if core == cores[0]:
-                ax.set_ylabel('average access latency (ns)')
+        plot_bar_chart(0, t, avg_counts, ylabel='average number of requests',
+                       title=True)
+        plot_bar_chart(1, t, avg_latency, ylabel='average access latency', ymin=10)
+        plot_bar_chart(2, t, throughputs, ylabel='throughput',
+                       xlabel='time (ns)', ticks=True)
+        if plot_total_arrivals:
+            plot_bar_chart(3, t, total_arrivals, ylabel='number of arrivals')
 
         fig.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.9)
-        plt.tight_layout()
-        plt.savefig(f'pictures/{len(cores)}core_time_plot{stepsize}_{start_time}-{end_time}.png')
-        plt.show()
+        fig.tight_layout()
+        fig.savefig(f'pictures/{len(cores)}core_time_plot{stepsize}_{start_time}-{end_time}.png')
 
 def plot_correlation(data, stepsize, start_time, end_time):
     data[:,1] = 0
-    data1, t, arrivals, count, avg_count, latency = avg_dram_requests(data, stepsize, start_time=start_time, end_time=end_time)
-    # print(data1)
-    # print(arrivals[0])
-    # print(count[0])
-    # print(latency[0])
+    data1, t, total_arrivals, avg_count_for_arrivals, avg_count, avg_latency = avg_dram_requests(data, stepsize, start_time=start_time, end_time=end_time)
     plt.figure(figsize=(8,5), dpi=150)
-    count = count[0]
+    avg_count_for_arrivals = avg_count_for_arrivals[0]
     latency = latency[0]
     arrivals = arrivals[0]
-    for i in range(len(count)):
-        if count[i]>= 580 and count[i] <= 590:
-            print(count[i], latency[i], arrivals[i], t[i])
+    for i in range(len(avg_count_for_arrivals)):
+        if avg_count_for_arrivals[i]>= 580 and avg_count_for_arrivals[i] <= 590:
+            print(avg_count_for_arrivals[i], latency[i], arrivals[i], t[i])
 
-    for i in range(len(count)):
+    for i in range(len(avg_count_for_arrivals)):
         if latency[i] == 0:
-            count[i] = 0
-    # cores = count.keys()
-    # flattened_count = [item for core in cores for item in count[core]]
-    # flattened_latency = [item for core in cores for item in latency[core]]
-    fig = plt.figure(figsize=(10,6), dpi=150)
+            avg_count_for_arrivals[i] = 0
     plt.xlabel(f'average number of DRAM requests within {stepsize} ns.')
     plt.ylabel('average access latency (ns)')
-    plt.scatter(count, latency, s=0.3)
+    plt.scatter(avg_count_for_arrivals, latency, s=0.3)
     plt.tight_layout()
     plt.savefig(f'pictures/correlation_{stepsize}__{int(start_time/1000)}-{int(end_time/1000)}.png')
 
@@ -195,20 +147,13 @@ def plot_different_correlations(data, stepsizes, start_time, end_time):
         plot_correlation(data, stepsize, start_time, end_time)
 
 if __name__ == '__main__':
-    stepsizes = [100, 500, 1_000, 10_000, 100_000, 1_000_000, 10_000_000, 100_000_000] # in nanoseconds
-    data = retrieve_data(data_filenumber)
-    start_times = [0]
-    # end_time = data[-1,0] + data[-1,2]
-    end_times = [1_000_000_000]
-    stepsize = 1_000_000
+    data = retrieve_data(ONE_GHZ_DATA_FILE_NUMBER)
+    start_times = [21_100_000, 0]
+    end_times = [21_200_000, 1_000_000_000]
+    stepsizes = [53, 1_000_000]
+    plot_time_plots(data, stepsizes, start_times, end_times, plot_total_arrivals=False)
 
 
-    start_times = [21_105_000]
-    end_times = [21_110_000]
-    stepsize = 1_00
-    # plot_different_correlations(data, stepsizes, start_time, end_time)
-    plot_time_plots(data, stepsize, start_times, end_times)
-    # plot_time_plots(data, stepsize)
 
 
 
