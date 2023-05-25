@@ -12,7 +12,7 @@ def plot_1_on_2_influence():
     core0_id = 0
     core1_id = 1
 
-    core1_pops_lst = range(1, 8, 1)
+    core1_pops_lst = range(1, 2, 1)
 
     # for i in range(len(args)):
     #     print(type(args[i]))
@@ -40,7 +40,7 @@ def plot_1_on_2_influence():
             best_upper_wait = -1
 
             # Find best value of N0
-            for N0 in range(cap0, 100):
+            for N0 in range(cap0, 7):
                 print(f'{N1 = }, {cap0 = }, {N0 = }')
                 args[0][core0_id] = N0
 
@@ -66,7 +66,7 @@ def plot_1_on_2_influence():
             else:
                 N0 = best_upper_N0
             args[0][core0_id] = N0
-            new_service_times = find_cores_service_times(args, [core0_id], [num0_dram_requests], time)
+            new_service_times = find_cores_service_times(args, [core0_id], [NUM0_DRAM_REQUESTS], TIME)
             args[4] = new_service_times
 
             throughput = mva(*args)[2]
