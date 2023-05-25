@@ -1,9 +1,11 @@
+import numpy as np
+
 RESULTS_PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/CoMeT/results/'
 PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/'
 ACCESS_DATA_PATH = PATH + 'data/dram_access_data/'
 
-NUMPY_FILES_PATH = PATH + 'tests/numpy_files/'
-ONE_GHZ_DATA_FILE_NUMBER = 106
+DATA_FILES = {'parsec-blackscholes' : {1 : 109, 2 : 110, 3 : 111},
+              'parsec-bodytrack'    : {1 : 112, 2 : 113, 3 : 114}}
 
 
 BENCHMARKS = [
@@ -30,8 +32,19 @@ BENCHMARKS = [
             'splash2-radix'
             ]
 
-MEM_CAPACITY = 6
-SERVICE_TIME = 45
-PROCESSING_TIME = 8
-MEM_TIME = SERVICE_TIME + PROCESSING_TIME
+# Mem constants.
+CAP_MEM = 6
+SERVICE_TIME_MEM = 53
+
+# Core1 constants
+CAP1 = 2
+SERVICE_TIME1 = 100
+
+# Core 1 waiting time and throughput (= num0_dram_requests / time).
+WAIT0 = 65
+NUM0_DRAM_REQUESTS = 9
+TIME = 100
+THROUGHPUT = NUM0_DRAM_REQUESTS / TIME
+
+TOL = 0.5
 

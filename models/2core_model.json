@@ -1,0 +1,9 @@
+{
+    "population vector": [10,0],
+    "reference stations": [2,2],
+    "visits": [[1, 0],
+               [0, 1],
+               [1, 1]],
+    "capacities": [6, 10, 10],
+    "service times": [22.22, 10, 10]
+}

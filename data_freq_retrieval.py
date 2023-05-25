@@ -1,28 +1,14 @@
-from parameter_derivation import find_cores_service_times
-from data_retrieval import avg_dram_requests, retrieve_data, retrieve_throughputs
 import numpy as np
-from constants import ONE_GHZ_DATA_FILE_NUMBER
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
 from collections import Counter
-import itertools
-from time import time as now
 
-LATENCY_TOL = 1
+from constants import *
+from data_retrieval import retrieve_data, retrieve_throughputs
 
-def model(n):
-    pop_vector = np.zeros(n)
-    refs = np.ones(n) * n
-    visits = np.eye(n + 1, n)
-    visits[-1] = np.ones(n)
-    caps = np.zeros(n + 1)
-    caps[-1] = 5
-    service_times = np.zeros(n + 1)
-    return [pop_vector, refs, visits, caps, service_times]
-
-def create_step_func(data, stepsize, n_clusters):
+def permute_timestamps(data, stepsize, start_time, end_time, n_clusters, run_info):
     start_time = 0
-    end_time = 1_00_000_000
+    end_time = data[-1,0] + data[-1,2] + stepsize
     timestamps, throughput = retrieve_throughputs(data, stepsize, start_time, end_time)
     cores = np.unique(data[:,1])
 
@@ -37,8 +23,10 @@ def create_step_func(data, stepsize, n_clusters):
     X = {core : throughput_[core].reshape(-1, 1) for core in cores}
     # for core in cores:
     #     print(np.shape(X[core]))
-    kmeans = {core : KMeans(n_clusters=min(len(X[core]), n_clusters), n_init=10).fit(X[core]) for core in cores}
-    cluster_centers = {core : np.append(kmeans[core].cluster_centers_, [0]).reshape(-1,1) for core in cores}
+    kmeans = {core : KMeans(n_clusters=min(len(X[core]), n_clusters),
+                            init=np.linspace(0, 0.1, n_clusters).reshape(-1,1),
+                            n_init=1).fit(X[core]) for core in cores}
+    cluster_centers = {core : np.append([0], kmeans[core].cluster_centers_).reshape(-1,1) for core in cores}
     # for core in cores:
     #     print(cluster_centers[core])
     kmeans = {core : KMeans(n_clusters=min(len(X[core]), n_clusters) + 1,
@@ -125,17 +113,25 @@ def create_step_func(data, stepsize, n_clusters):
         else:
             ax.set_xlabel('permuted time (ns)')
         if core == 0:
-            ax.set_title(f'Stepsize: {stepsize}, Core {core}')
+            ax.set_title(f'Stepsize: {stepsize}, End_time: {end_time}, Core {core}')
         else:
             ax.set_title(f'Core {core}')
 
         # ax.set_yscale('log')
         # ax.set_ylim([min(vals[vals != 0]), 2 * max(vals)])
         ax.set_ylabel('throughput')
-    plt.savefig(f'pictures/time_permutation_{stepsize}_{start_time}-{end_time}')
+    plt.savefig(f'pictures/time_perm_{run_info}_{n_clusters}_{stepsize}_{start_time}-{end_time}')
 
 if __name__ == '__main__':
-    data = retrieve_data(ONE_GHZ_DATA_FILE_NUMBER)
-    stepsize = 1_000_00
-    n_clusters = 6
-    create_step_func(data, stepsize, n_clusters)
+    for num in range(1, 4):
+        benchmark = 'parsec-bodytrack'
+        file_nr = DATA_FILES[benchmark][num]
+        data = retrieve_data(file_nr)
+
+        start_time = 0
+        end_time = data[-1, 0] + data[-1, 2]
+        stepsize = int(end_time / 1000)
+        n_clusters = 5
+        run_info = benchmark + str(num)
+
+        permute_timestamps(data, stepsize, start_time, end_time, n_clusters, run_info)

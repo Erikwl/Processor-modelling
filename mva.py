@@ -1,6 +1,5 @@
 import numpy as np
 from discreteMarkovChain import markovChain
-from time import time
 
 def find_inv_dists(Ps):
     mcs = [markovChain(P) for P in Ps]
@@ -23,8 +22,8 @@ def mva(N, refs, visits, caps, service_times):
     for (r, ref) in enumerate(refs):
         visits[:,r] /= visits[ref,r]
 
-    Rs = np.array([[r for r in range(R) if visits[i,r] > 0] for i in range(M)])
-    Ms = np.array([[i for i in range(M) if visits[i,r] > 0] for r in range(R)])
+    Rs = [[r for r in range(R) if visits[i,r] > 0] for i in range(M)]
+    Ms = [[i for i in range(M) if visits[i,r] > 0] for r in range(R)]
 
     nr_of_states = int(np.product(N + np.ones(1)))
 
@@ -35,6 +34,7 @@ def mva(N, refs, visits, caps, service_times):
     waits = np.zeros((M, R, nr_of_states))
     throughputs = np.zeros((R, nr_of_states))
 
+    # print(M, caps, N)
     for i in range(M):
         probs[i, 0, 0] = 1
 

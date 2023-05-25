@@ -1,7 +1,6 @@
-from constants import ACCESS_DATA_PATH, SERVICE_TIME, ONE_GHZ_DATA_FILE_NUMBER
+from constants import ACCESS_DATA_PATH, SERVICE_TIME, DATA_FILES
 import numpy as np
 import matplotlib.pyplot as plt
-from time import time as current_time
 
 
 def retrieve_data(nr):
@@ -77,8 +76,6 @@ def avg_dram_requests(data, stepsize, start_time=0, end_time=-1):
     return data, timestamps, total_arrivals, avg_counts_for_arrivals, avg_count, avg_latency
 
 
-
-
 def plot_time_plots(data, stepsizes, start_times, end_times, plot_total_arrivals=False):
     def plot_bar_chart(subplot_num, t, vals, xlabel='',
                        ylabel='', title=False, logscale=False, ticks=False, ymin=1E-1):
@@ -147,7 +144,10 @@ def plot_different_correlations(data, stepsizes, start_time, end_time):
         plot_correlation(data, stepsize, start_time, end_time)
 
 if __name__ == '__main__':
-    data = retrieve_data(ONE_GHZ_DATA_FILE_NUMBER)
+    benchmark = 'parsec-blackscholes'
+    num = 1
+    file_nr = DATA_FILES[benchmark][num]
+    data = retrieve_data(file_nr)
     start_times = [21_100_000, 0]
     end_times = [21_200_000, 1_000_000_000]
     stepsizes = [53, 1_000_000]
