@@ -38,7 +38,8 @@ SERVICE_TIME_MEM = 53
 
 # Core1 constants
 CAP1 = 2
-SERVICE_TIME1 = 100000
+SERVICE_TIME1 = 100
+N1 = 3
 
 # Core 1 waiting time and throughput (= num0_dram_requests / time).
 WAIT0 = 65
@@ -47,4 +48,5 @@ TIME = 100
 THROUGHPUT = NUM0_DRAM_REQUESTS / TIME
 
 TOL = 0.5
+COMPLETE_PROBS = False
 

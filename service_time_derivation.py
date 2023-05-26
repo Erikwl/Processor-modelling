@@ -20,20 +20,26 @@ from main import model
 
 def find_cores_service_times(args, core_ids, num_dram_requests, time):
     """All units are in microseconds. """
-    def fun(*new_service_times):
+    def fun_root(*new_service_times):
         args[4][core_ids] = new_service_times
         mem_throughputs = mva(*args)[2][core_ids]
-        return np.sum(np.abs(num_dram_requests - mem_throughputs * time))
+        return np.abs(num_dram_requests - mem_throughputs * time)
+    def fun_min(*new_service_times):
+        return np.sum(fun_root(new_service_times))
 
     # Initial guess for service time is given by:
     # service time of memory * capacity of core / capacity of memory.
     x0 = [args[4][-1] * args[3][core0_id] / args[3][-1] for core0_id in core_ids]
     bounds = [(0.001, np.inf)] * len(num_dram_requests)
-    new_service_times = optimize.minimize(fun, x0, bounds=bounds, tol=0.00001).x
-    args[4][core_ids] = new_service_times
-    print(x0, new_service_times)
 
-    return args[4] if (fun(*new_service_times) < TOL) and np.all(new_service_times > 0) else None
+    # Improvement of the guess is calculated by scipy.minimize.
+    x0 = optimize.minimize(fun_min, x0, bounds=bounds, tol=1).x
+
+    # Solution is further calculated by scipy.root.
+    new_service_times = optimize.root(fun_root, x0).x
+    args[4][core_ids] = new_service_times
+
+    return args[4] if (fun_min(*new_service_times) < TOL) and np.all(new_service_times > 0) else None
 
 def divide_proportional(vals, n):
     tot = sum(vals)
@@ -65,7 +71,6 @@ def find_all_params(num_dram_requests, waiting_times, time):
 
     args = model(R)
     args[3][:-1] = np.ones(R, dtype=int) # Capacities of cores
-    args[3][0] += 1
 
     total_pop = max(CAP_MEM + 1, R)
     pops = divide_proportional(waiting_times, total_pop)
@@ -76,21 +81,19 @@ def find_all_params(num_dram_requests, waiting_times, time):
     best_lower_pops = pops
     best_lower_diff = np.sum(fpops)
 
-    while best_lower_diff < 0:
+    while True:
         for i in range(len(pops)):
             if fpops[i] == min(fpops):
                 pops[i] += 1
         fpops = f(pops)
-        print(pops, fpops)
         if np.sum(fpops) > 0:
             break
-        best_lower_pops = pops
+        best_lower_pops = np.copy(pops)
         best_lower_diff = np.sum(fpops)
 
-    print(waiting_times, pops, best_lower_diff, np.sum(fpops))
     if np.abs(best_lower_diff) > np.abs(np.sum(fpops)):
         return args
-    args[4] = best_lower_pops
+    args[0] = best_lower_pops
     return args
 
 
@@ -99,9 +102,4 @@ if __name__ == '__main__':
     waiting_times = np.array([65, 69])
     time = 100
     print(find_all_params(num_dram_requests, waiting_times, time))
-
-
-
-
-
 

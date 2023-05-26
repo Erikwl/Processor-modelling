@@ -35,12 +35,14 @@ def model(n, test_model=False):
     if n == 2 and test_model == True:
         caps[1] = CAP1
         service_times[1] = SERVICE_TIME1
+        pop_vector[1] = N1
     return [pop_vector, refs, visits, caps, service_times]
 
 def time_execution(args):
     start = current_time()
-    mva(*args)
-    print(f'The mva algo took {(current_time() - start) * 1000:.4f} ms')
+    for _ in range(1000):
+        mva(*args)
+    print(f'The mva algo took {(current_time() - start):.4f} ms')
 
 def verify_model():
     args = read_json('models/1core_model.json')
@@ -50,11 +52,11 @@ def verify_model():
         print(f'{name}: {perf_measures[i]}')
 
 if __name__ == '__main__':
-    num = sys.argv[1]
+    num = int(sys.argv[1])
     # Verify the correctness of the model by comparing it to a known model.
     if num == 0:
         verify_model()
     # Time the model.
     elif num == 1:
         args = read_json('models/timing_model.json')
-        time_execution()
+        time_execution(args)

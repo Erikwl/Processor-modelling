@@ -6,7 +6,7 @@ from collections import Counter
 from constants import *
 from data_retrieval import retrieve_data, retrieve_throughputs
 
-def permute_timestamps(data, stepsize, start_time, end_time, n_clusters, run_info):
+def permute_timestamps(data, stepsize, start_time, end_time, n_clusters, run_info, plot=False):
     start_time = 0
     end_time = data[-1,0] + data[-1,2] + stepsize
     timestamps, throughput = retrieve_throughputs(data, stepsize, start_time, end_time)
@@ -94,33 +94,36 @@ def permute_timestamps(data, stepsize, start_time, end_time, n_clusters, run_inf
 
     # print(f'{split_intervals = }')
 
-    fig = plt.figure(figsize=(8,8), dpi=150)
+    if plot == True:
+        fig = plt.figure(figsize=(8,8), dpi=150)
 
-    for i, core in enumerate(cores):
-        vals = throughput[core][permuted_indices]
-        ax = fig.add_subplot(len(cores), 1, i + 1)
-        ax.vlines(x=timestamps, ymin=np.zeros(len(timestamps)), ymax=vals, alpha=0.5)
-        low = split_intervals[0]
-        for y, high in zip(split_throughput[core], split_intervals[1:]):
-            if high == len(timestamps):
-                ax.hlines(y=y, xmin=timestamps[low], xmax=end_time, linestyles='-', color='r')
+        for i, core in enumerate(cores):
+            vals = throughput[core][permuted_indices]
+            ax = fig.add_subplot(len(cores), 1, i + 1)
+            ax.vlines(x=timestamps, ymin=np.zeros(len(timestamps)), ymax=vals, alpha=0.5)
+            low = split_intervals[0]
+            for y, high in zip(split_throughput[core], split_intervals[1:]):
+                if high == len(timestamps):
+                    ax.hlines(y=y, xmin=timestamps[low], xmax=end_time, linestyles='-', color='r')
+                else:
+                    ax.hlines(y=y, xmin=timestamps[low], xmax=timestamps[high], linestyles='-', color='r')
+                low = high
+
+            if i < len(cores) - 1:
+                ax.set_xticklabels([])
             else:
-                ax.hlines(y=y, xmin=timestamps[low], xmax=timestamps[high], linestyles='-', color='r')
-            low = high
+                ax.set_xlabel('permuted time (ns)')
+            if core == 0:
+                ax.set_title(f'Stepsize: {stepsize}, End_time: {end_time}, Core {core}')
+            else:
+                ax.set_title(f'Core {core}')
 
-        if i < len(cores) - 1:
-            ax.set_xticklabels([])
-        else:
-            ax.set_xlabel('permuted time (ns)')
-        if core == 0:
-            ax.set_title(f'Stepsize: {stepsize}, End_time: {end_time}, Core {core}')
-        else:
-            ax.set_title(f'Core {core}')
+            # ax.set_yscale('log')
+            # ax.set_ylim([min(vals[vals != 0]), 2 * max(vals)])
+            ax.set_ylabel('throughput')
+        plt.savefig(f'pictures/time_perm_{run_info}_{n_clusters}_{stepsize}_{start_time}-{end_time}')
 
-        # ax.set_yscale('log')
-        # ax.set_ylim([min(vals[vals != 0]), 2 * max(vals)])
-        ax.set_ylabel('throughput')
-    plt.savefig(f'pictures/time_perm_{run_info}_{n_clusters}_{stepsize}_{start_time}-{end_time}')
+    return permuted_indices
 
 if __name__ == '__main__':
     for num in range(1, 4):
@@ -130,7 +133,8 @@ if __name__ == '__main__':
 
         start_time = 0
         end_time = data[-1, 0] + data[-1, 2]
-        stepsize = int(end_time / 1000)
+        # stepsize = int(end_time / 1000)
+        stepsize = 1_000
         n_clusters = 5
         run_info = benchmark + str(num)
 
