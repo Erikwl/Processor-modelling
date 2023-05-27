@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 
-from service_time_derivation import find_cores_service_times
+from service_time_derivation import *
 from mva import mva
 from constants import *
 from main import model
@@ -10,8 +10,8 @@ from main import model
 def plot_0_on_1_influence():
     def f(N0):
         args[0][core0_id] = N0
-        new_service_times = find_cores_service_times(args, [core0_id], [NUM0_DRAM_REQUESTS], TIME)
-        if new_service_times is None:
+        error, new_service_times = find_cores_service_times(args, [core0_id], [NUM0_DRAM_REQUESTS / TIME])
+        if error is 'too high':
             return None
         return mva(*args)[1][-1][core0_id] - WAIT0
 
@@ -90,8 +90,8 @@ def plot_0_on_1_influence():
 
 
             args[0][core0_id] = N0
-            new_service_times = find_cores_service_times(args, [core0_id], [NUM0_DRAM_REQUESTS], TIME)
-            args[4] = new_service_times
+            error, new_service_times = find_cores_service_times(args, [core0_id], [NUM0_DRAM_REQUESTS / TIME])
+            # args[4] = new_service_times
 
             waits, throughputs = mva(*args)[1:3]
             nrs1 = throughputs[core1_id] * waits[-1,core1_id]
@@ -156,8 +156,8 @@ def plot_cap0_pop0_dynamics():
         for pop0 in pops0:
             print(f'{cap0 = }, {pop0 = }')
             args[0][core0_id] = pop0
-            new_service_times = find_cores_service_times(args, [core0_id], [NUM0_DRAM_REQUESTS], TIME)
-            if new_service_times is None:
+            error, new_service_times = find_cores_service_times(args, [core0_id], [NUM0_DRAM_REQUESTS / TIME])
+            if error == 'too high':
                 continue
             args[4] = new_service_times
             # print(pop, cap, new_service_times)
@@ -200,11 +200,11 @@ def plot_cap0_pop0_dynamics():
             ax.legend()
 
 
-    # cap0_x_vals = {low_cap0 : [], high_cap0 : []}
-    # cap0_y_vals = {low_cap0 : [], high_cap0 : []}
+    fig.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.9)
+    fig.tight_layout()
+    fig.savefig(f'pictures/cap0_pop0_dynamics')
 
-    # pop0_x_vals = {low_pop0 : [], high_pop0 : []}
-    # pop0_y_vals = {low_pop0 : [], high_pop0 : []}
+    fig = plt.figure(figsize=(8,8), dpi=150)
 
     bar_width = 0.35
     differences = [[low_cap0, high_cap0],
@@ -222,13 +222,13 @@ def plot_cap0_pop0_dynamics():
         ax.bar(np.array(x_vals[1]) + bar_width / 2, y_vals[1], width=bar_width, align='center', alpha=0.5, label=f'Cap = {vec[1][0]}, pop = {vec[1][1]}')
         ax.vlines(5.5, [0], [max(max(y_vals[0]), max(y_vals[1]))], linestyles='--', label='DRAM capacity')
         ax.legend()
-        ax.set_xlabel('Number of requests')
+        ax.set_xlabel('Number of requests in DRAM')
         ax.set_ylabel('Probability')
         ax.set_title(title)
 
     fig.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.9)
     fig.tight_layout()
-    fig.savefig(f'pictures/cap0_pop0_dynamics')
+    fig.savefig(f'pictures/cap0_pop0_dynamics_probs')
 
 
 

@@ -1,15 +1,17 @@
-from constants import ACCESS_DATA_PATH, SERVICE_TIME, DATA_FILES
+from constants import *
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
 
 def retrieve_data(nr):
     filename = ACCESS_DATA_PATH + 'dram_access_data_raw' + str(nr) + '.csv'
     return np.loadtxt(filename, dtype=np.uintc, skiprows=1, delimiter=',')
 
-def retrieve_throughputs(data, stepsize, start_time=0, end_time=-1):
-    if end_time == -1:
-        end_time = data[-1,0] + data[-1,2] # Last dram access + latency
+def retrieve_throughputs(data, stepsize, start_time, end_time, file_nr):
+    data_filename = f'data/throughputs_{file_nr}_{stepsize}_{start_time}-{end_time}.npy'
+    if os.path.exists(data_filename):
+        return np.load(data_filename, allow_pickle=True)[()]
 
     filter = np.all([data[:,0] >= start_time, data[:,0] + data[:,2] <= end_time], axis=0)
     data = data[filter]
@@ -20,27 +22,39 @@ def retrieve_throughputs(data, stepsize, start_time=0, end_time=-1):
     throughputs = {core : np.zeros([nr_bins]) for core in cores}
 
     for t, core_id, latency in data:
-        execution_begin = t + latency - SERVICE_TIME
-        index = int((execution_begin - start_time) / stepsize)
-        start = execution_begin - timestamps[index]
-        end = start + SERVICE_TIME
+        index = int((t - start_time) / stepsize)
+        throughputs[core_id][index] += 1
+        # execution_begin = t + latency - SERVICE_TIME_MEM
+        # start = execution_begin - timestamps[index]
+        # end = start + SERVICE_TIME_MEM
         # print(t, latency, execution_begin, throughputs)
-        while end:
-            if index >= nr_bins:
-                break
-            if end >= stepsize:
-                throughputs[core_id][index] += (stepsize - start) / SERVICE_TIME
-                end -= stepsize
-                start = 0
-                index += 1
-            else:
-                throughputs[core_id][index] += (end - start) / SERVICE_TIME
-                break
-    return timestamps, throughputs
+        # while end:
+        #     if index >= nr_bins:
+        #         break
+        #     if end >= stepsize:
+        #         throughputs[core_id][index] += (stepsize - start) / SERVICE_TIME_MEM
+        #         end -= stepsize
+        #         start = 0
+        #         index += 1
+        #     else:
+        #         throughputs[core_id][index] += (end - start) / SERVICE_TIME_MEM
+        #         break
 
-def avg_dram_requests(data, stepsize, start_time=0, end_time=-1):
+    data_dict = {'cores' : cores,
+                 'throughputs' : throughputs}
+
+    np.save(data_filename, data_dict)
+    return data_dict
+
+def avg_dram_requests(data, stepsize, start_time, end_time, file_nr):
     if end_time == -1:
-        end_time = data[-1,0] + data[-1,2] # Last dram access + latency
+        end_time = data[-1,0] + data[-1,2] + stepsize # Last dram access + latency
+
+    data_filename = f'data/dram_data_{file_nr}_{stepsize}_{start_time}-{end_time}.npy'
+    if os.path.exists(data_filename):
+        print('DRAM data has already been calculated.')
+        return np.load(data_filename, allow_pickle=True)[()]
+
     filter = np.all([data[:,0] >= start_time, data[:,0] + data[:,2] <= end_time], axis=0)
     data = data[filter]
     cores = np.unique(data[:,1])
@@ -73,10 +87,17 @@ def avg_dram_requests(data, stepsize, start_time=0, end_time=-1):
                 break
     avg_latency = {i : np.divide(total_latency[i], total_arrivals[i], out=np.zeros_like(total_arrivals[i]), where=total_arrivals[i]!=0) for i in cores}
     avg_counts_for_arrivals = {i : np.divide(total_counts_for_arrivals[i], total_arrivals[i], out=np.zeros_like(total_arrivals[i]), where=total_arrivals[i]!=0) for i in cores}
-    return data, timestamps, total_arrivals, avg_counts_for_arrivals, avg_count, avg_latency
+    data_dict = {'cores' : cores,
+                 'total_arrivals' : total_arrivals,
+                 'avg_counts_for_arrivals' : avg_counts_for_arrivals,
+                 'avg_count' : avg_count,
+                 'avg_latency' : avg_latency}
+    np.save(data_filename, data_dict)
+    print('DRAM data file has been saved.')
+    return data_dict
 
 
-def plot_time_plots(data, stepsizes, start_times, end_times, plot_total_arrivals=False):
+def plot_time_plots(data, stepsizes, start_times, end_times, file_nr, plot_total_arrivals=False):
     def plot_bar_chart(subplot_num, t, vals, xlabel='',
                        ylabel='', title=False, logscale=False, ticks=False, ymin=1E-1):
         for index, core in enumerate(cores):
@@ -99,9 +120,12 @@ def plot_time_plots(data, stepsizes, start_times, end_times, plot_total_arrivals
 
     for stepsize, start_time, end_time in zip(stepsizes, start_times, end_times):
         fig = plt.figure(figsize=(8,8), dpi=150)
-        t, throughputs = retrieve_throughputs(data, stepsize, start_time, end_time)
-        data1, t, total_arrivals, avg_counts_for_arrivals, avg_counts, avg_latency = avg_dram_requests(data, stepsize, start_time=start_time, end_time=end_time)
-        cores = np.unique(data1[:,1])
+        t, throughputs = retrieve_throughputs(data, stepsize, start_time, end_time, file_nr)
+        data_dict = avg_dram_requests(data, stepsize, start_time, end_time, file_nr)
+        total_arrivals = data_dict['total_arrivals']
+        avg_counts = data_dict['avg_counts']
+        avg_latency = data_dict['avg_latency']
+        cores = np.unique(data[:,1])
 
         for core in cores:
             total_arrivals[core] /= stepsize
@@ -119,20 +143,24 @@ def plot_time_plots(data, stepsizes, start_times, end_times, plot_total_arrivals
         fig.tight_layout()
         fig.savefig(f'pictures/{len(cores)}core_time_plot{stepsize}_{start_time}-{end_time}.png')
 
-def plot_correlation(data, stepsize, start_time, end_time):
+def plot_correlation(data, stepsize, start_time, end_time, file_nr):
     data[:,1] = 0
-    data1, t, total_arrivals, avg_count_for_arrivals, avg_count, avg_latency = avg_dram_requests(data, stepsize, start_time=start_time, end_time=end_time)
-    plt.figure(figsize=(8,5), dpi=150)
-    avg_count_for_arrivals = avg_count_for_arrivals[0]
-    latency = latency[0]
+    data_dict = avg_dram_requests(data, stepsize, start_time, end_time, file_nr)
+    timestamps = np.arange(start_time, end_time, stepsize)
+    avg_count_for_arrivals = data_dict['avg_count_for_arrivals'][0]
+    avg_latency = data_dict['avg_latency']
+    # avg_count_for_arrivals = avg_count_for_arrivals[0]
+    # latency = avg_latency[0]
     arrivals = arrivals[0]
     for i in range(len(avg_count_for_arrivals)):
         if avg_count_for_arrivals[i]>= 580 and avg_count_for_arrivals[i] <= 590:
-            print(avg_count_for_arrivals[i], latency[i], arrivals[i], t[i])
+            print(avg_count_for_arrivals[i], avg_latency[i], arrivals[i], timestamps[i])
 
     for i in range(len(avg_count_for_arrivals)):
-        if latency[i] == 0:
+        if avg_latency[i] == 0:
             avg_count_for_arrivals[i] = 0
+
+    plt.figure(figsize=(8,5), dpi=150)
     plt.xlabel(f'average number of DRAM requests within {stepsize} ns.')
     plt.ylabel('average access latency (ns)')
     plt.scatter(avg_count_for_arrivals, latency, s=0.3)
@@ -151,7 +179,7 @@ if __name__ == '__main__':
     start_times = [21_100_000, 0]
     end_times = [21_200_000, 1_000_000_000]
     stepsizes = [53, 1_000_000]
-    plot_time_plots(data, stepsizes, start_times, end_times, plot_total_arrivals=False)
+    plot_time_plots(data, stepsizes, start_times, end_times, file_nr, plot_total_arrivals=False)
 
 
 
