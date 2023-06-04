@@ -33,9 +33,9 @@ def model(n, test_model=False):
     caps[-1] = CAP_MEM
     service_times[-1] = SERVICE_TIME_MEM
     if n == 2 and test_model == True:
-        caps[1] = CAP1
-        service_times[1] = SERVICE_TIME1
-        pop_vector[1] = N1
+        caps[0:2] = [CAP0, CAP1]
+        service_times[0:2] = [SERVICE_TIME0, SERVICE_TIME1]
+        pop_vector[0:2] = [N0, N1]
     return [pop_vector, refs, visits, caps, service_times]
 
 def time_execution(args):

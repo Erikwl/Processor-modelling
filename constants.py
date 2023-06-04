@@ -4,9 +4,14 @@ RESULTS_PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/CoMeT/result
 PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/'
 ACCESS_DATA_PATH = PATH + 'data/dram_access_data/'
 
-DATA_FILES = {'parsec-blackscholes' : {1 : 109, 2 : 110, 3 : 111},
-              'parsec-bodytrack'    : {1 : 112, 2 : 113, 3 : 114}}
-
+DATA_FILES = {'parsec-blackscholes' : {1 : 128, 2 : 129, 3 : 130},
+              'parsec-bodytrack'    : {1 : 125, 2 : 126, 3 : 127},
+            #   'parsec-blackscholes' : {1 : 109, 2 : 110, 3 : 111},
+            #   'parsec-bodytrack'    : {1 : 112, 2 : 113, 3 : 114},
+              'parsec-dedup' : {1 : 132},
+              'parsec-fluidanimate' : {1 : 133},
+              'parsec-streamcluster' : {1 : 134},
+              'parsec-swaptions' : {1 : 135}}
 
 BENCHMARKS = [
             'parsec-blackscholes',
@@ -32,22 +37,39 @@ BENCHMARKS = [
             'splash2-radix'
             ]
 
+# DRAM data constants
+STEPSIZE = 100
+# START_TIME = 21_000_000
+START_TIME = 0
+# END_TIME = 21_200_000
+END_TIME = 100_000
+
 # Mem constants.
-CAP_MEM = 6
-SERVICE_TIME_MEM = 53
+CAP_MEM = 1
+SERVICE_TIME_MEM = 9.010
 
 # Core1 constants
 CAP1 = 2
 SERVICE_TIME1 = 100
 N1 = 3
 
+# Core0 constants
+CAP0 = 2
+SERVICE_TIME0 = 100
+N0 = 3
+
 # Core 1 waiting time and throughput (= num0_dram_requests / time).
-WAIT0 = 65
-NUM0_DRAM_REQUESTS = 9
+# Cap0_pop0
+# WAIT0 = 75
+# NUM0_DRAM_REQUESTS = 9
+
+# 0_on_1_influence
+WAIT0 = 25
+NUM0_DRAM_REQUESTS = 7
 TIME = 100
-THROUGHPUT = NUM0_DRAM_REQUESTS / TIME
+THROUGHPUT0 = NUM0_DRAM_REQUESTS / TIME
 
 TOL = 0.5
 COMPLETE_PROBS = False
-MAX_POP_SIZE = 25
+MAX_POP_SIZE = 40
 

@@ -20,12 +20,16 @@ from main import model
 
 def find_cores_service_times(args, core_ids, throughs):
     """All units are in microseconds. """
-    def fun_root(*new_service_times):
-        args[4][core_ids] = new_service_times
-        mem_throughputs = mva(*args)[2][core_ids]
+    def fun_root(*service_times):
+        args_cpy = args.copy()
+        args_cpy[4][core_ids] = service_times
+        # print(args_cpy[4])
+        # args[4][core_ids] = service_times
+        mem_throughputs = mva(*args_cpy)[2][core_ids]
+        # print('f')
         return np.abs(throughs - mem_throughputs)
-    def fun_min(*new_service_times):
-        return np.sum(fun_root(new_service_times))
+    def fun_min(*service_times):
+        return np.sum(fun_root(service_times))
 
     # Initial guess for service time is given by:
     # service time of memory * capacity of core / capacity of memory.
@@ -48,19 +52,25 @@ def find_cores_service_times(args, core_ids, throughs):
     #         return 'too high', args[4]
 
     # Solution is further calculated by scipy.root.
-    new_service_times = optimize.root(fun_root, x1).x
-    if (fun_min(*new_service_times) > TOL) or np.any(new_service_times < 0):
-        throughputs = mva(*args)[2]
-        args[4][core_ids] = x1
-        # print(f'\nWarning: throughput could not be reached:')
-        # print(f'{x1 = }')
-        # print(f'{new_service_times = }')
-        # print(f'Pop = {args[0]}')
-        # print(f'desired: {throughs}, achieved: {throughputs}\n')
-        return 'too high', args[4]
-    args[4][core_ids] = new_service_times
+    service_times = optimize.root(fun_root, x1).x
+    # if (fun_min(*new_service_times) > TOL) or np.any(new_service_times < 0):
+    #     # throughputs = mva(*args)[2]
+    #     # args[4][core_ids] = x1
+    #     # print(f'\nWarning: throughput could not be reached:')
+    #     # print(f'{x1 = }')
+    #     # print(f'{new_service_times = }')
+    #     # print(f'Pop = {args[0]}')
+    #     # print(f'desired: {throughs}, achieved: {throughputs}\n')
+    #     print(f'too high, {new_service_times = }, {fun_min(*new_service_times) = }')
+    #     return 'too high', x1
+    # args[4][core_ids] = new_service_times
 
-    return 'correct', args[4]
+    # print(f'The difference is {fun_min(new_service_times)}')
+
+    neg_service_times = [i for i in range(len(core_ids)) if service_times[i] < 0]
+    # print(f'ffffff{neg_service_times = }')
+    return neg_service_times, service_times
+
 def divide_proportional(vals, n):
     tot = sum(vals)
     lst = [int((val / tot) * n) for val in vals]
@@ -82,12 +92,15 @@ def find_all_params(throughs, waiting_times):
     R = len(throughs)
     M = R + 1
     def f(pops):
-        args[0] = pops
-        error, new_service_times = find_cores_service_times(args, range(R), throughs)
+        args_cpy = args.copy()
+        args_cpy[0] = pops
+        neg_service_times, service_times = find_cores_service_times(args_cpy, range(R), throughs)
         # if error == 'too high':
         #     print('Something went wrong')
         #     exit(0)
-        return mva(*args)[1][-1] - waiting_times
+        # args[4] = new_service_times
+        args_cpy[4][:-1] = service_times
+        return neg_service_times, service_times, mva(*args_cpy)[1][-1] - waiting_times
 
     args = model(R)
     args[3][:-1] = np.ones(R, dtype=int) # Capacities of cores
@@ -100,39 +113,62 @@ def find_all_params(throughs, waiting_times):
             pops[i] += 1
     # print(f'pop divided: {pops = }, {waiting_times = }')
 
-    fpops = f(pops)
-    if np.sum(fpops) > 0:
+    neg_service_times, service_times, diff = f(pops)
+    if not neg_service_times and np.sum(diff) > 0:
         # print(pops, throughs, waiting_times, f(pops))
+        args[0] = pops
+        args[4][:-1] = service_times
         return args
-    best_lower_pops = pops
-    best_lower_diff = np.sum(fpops)
+
+    best_lower_pops = np.copy(pops)
+    best_lower_diff = np.sum(diff)
+    best_lower_service_times = np.copy(service_times)
+    best_lower_neg_service_times = np.copy(neg_service_times)
 
     while True:
         # print(f'Testing population of {pops}')
         # print(f'{waiting_times = }, achieved: {waiting_times + fpops}')
 
-        # print(pops, num_dram_requests, waiting_times, fpops)
-        for i in range(len(pops)):
-            if fpops[i] == min(fpops):
-                pops[i] += 1
-        old_fpops = fpops
-        fpops = f(pops)
-        if max(pops) == MAX_POP_SIZE or np.sum(abs(old_fpops - fpops)) < 0.001:
-            print('Warning: Waiting time could not be reached:')
+        if neg_service_times:
+            for core in neg_service_times:
+                pops[core] += 1
+        else:
+            for i in range(len(pops)):
+                if diff[i] == min(diff):
+                    pops[i] += 1
+        old_diff = np.copy(diff)
+        neg_service_times, service_times, diff = f(pops)
+        # print(f'{error = }, {new_service_times = }')
+        # print('ggggggggggggg', neg_service_times, service_times)
+
+
+        # print(f'{pops = }, {throughs = }, {neg_service_times = }\n{old_diff = }, {diff = }')
+        if not neg_service_times \
+            and (np.sum(abs(old_diff - diff)) < 0.2 or max(pops) == MAX_POP_SIZE) \
+            and (np.sum(pops) >= CAP_MEM + 2):
+            # print('Warning: Waiting time could not be reached:')
             # print(f'Desired waiting times: {waiting_times}')
-            # print(f'Differences: {fpops}')
+            # print(f'Differences: {diff}')
+            # print(f'Old difference: {old_diff}')
+            # print(f'{np.sum(abs(old_diff - diff)) = }')
+            # print(f'{neg_service_times = }')
             break
-        if np.sum(fpops) > -0.5 * len(throughs):
+        if not neg_service_times and np.sum(diff) > -0.5 * len(throughs):
             break
         best_lower_pops = np.copy(pops)
-        best_lower_diff = np.sum(fpops)
-
+        best_lower_diff = np.sum(diff)
+        best_lower_service_times = np.copy(service_times)
+        best_lower_neg_service_times = np.copy(neg_service_times)
 
     # print('The returned parameters have a difference of:')
     # print(f'{waiting_times = }, achieved: {waiting_times + fpops}')
-    if np.abs(best_lower_diff) > np.abs(np.sum(fpops)):
+    if not best_lower_neg_service_times and np.abs(best_lower_diff) < np.abs(np.sum(diff)):
+        args[0] = best_lower_pops
+        args[4][:-1] = best_lower_service_times
         return args
-    args[0] = best_lower_pops
+
+    args[0] = pops
+    args[4][:-1] = service_times
     return args
 
 

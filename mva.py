@@ -90,6 +90,8 @@ lib = ctypes.CDLL('./mva_c_lib.so')
 
 def mva(N, refs, visits, caps, service_times):
     mus = 1 / service_times
+    if len(mus) != len(visits) or len(mus) != len(caps):
+        print(f'error: {len(mus) = }, {len(visits) = }, {len(caps) = }')
     R = len(N)
     M = len(visits)
 
