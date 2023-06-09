@@ -9,101 +9,91 @@ import os
 from constants import *
 from data_retrieval import *
 
-def permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, stepsize=None):
-    if stepsize == None:
-        stepsize = STEPSIZE
-    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize)
+def permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name):
+    data_dict = analyse_dram_data(file_nr, combine_cores)
     end_time = data_dict['end_time']
     timestamps = data_dict['timestamps']
     cores = data_dict['cores']
     throughputs = data_dict['throughputs']
     other_data = data_dict[other_data_name]
 
-
-    data_filename = f'data/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{end_time}.npy'
+    data_filename = f'data/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{STEPSIZE}_{START_TIME}-{end_time}.npy'
 
     if os.path.exists(data_filename):
         print('Permutated timestamps have already been calculated.')
         return np.load(data_filename, allow_pickle=True)[()]
 
-    # scalers = {core : StandardScaler() for core in cores}
+    scalers = {core : StandardScaler() for core in cores}
     # scaled_throughputs = {core : scaler.fit_transform(throughputs[core]) for core in cores}
     # scaled_avg_latency = {core : scaler.fit_transform(avg_latency[core]) for core in cores}
 
-    # kmeans = {}
-    # cluster_centers = {}
-    # predicted_clusters = {}
-    # for core in cores:
-    #     data = list(zip(throughputs[core], other_data[core]))
-    #     scaled_data = scalers[core].fit_transform(data)
-    #     kmeans[core] = KMeans(n_clusters=min(len(np.unique(scaled_data)), n_clusters), n_init=10).fit(scaled_data)
-    #     predicted_clusters[core] = kmeans[core].predict(scaled_data)
-    #     cluster_centers[core] = scalers[core].inverse_transform(kmeans[core].cluster_centers_)
-    throughputs_data = np.array([throughputs[core] for core in cores])
-    other_data = np.array([other_data[core] for core in cores])
-    data = np.append(throughputs_data, other_data, axis=0).transpose()
-    scaler = StandardScaler()
-    scaled_data = scaler.fit_transform(data)
-    kmeans = KMeans(n_clusters=min(len(np.unique(scaled_data)), n_clusters), n_init=20).fit(scaled_data)
-    predicted_clusters = kmeans.predict(scaled_data)
-    cluster_centers = scaler.inverse_transform(kmeans.cluster_centers_)
-
+    kmeans = {}
+    cluster_centers = {}
+    predicted_clusters = {}
+    for core in cores:
+        data = list(zip(throughputs[core], other_data[core]))
+        scaled_data = scalers[core].fit_transform(data)
+        kmeans[core] = KMeans(n_clusters=min(len(np.unique(scaled_data)), n_clusters), n_init=10).fit(scaled_data)
+        predicted_clusters[core] = kmeans[core].predict(scaled_data)
+        cluster_centers[core] = scalers[core].inverse_transform(kmeans[core].cluster_centers_)
 
     print('Clusters have been created.')
     # for core in cores:
     #     print(f'{core = }, {kmeans[core].cluster_centers_}')
 
-    split_intervals = [0]
+    split_intervals = [0, len(timestamps)]
     # split_fitted_throughputs = {core : [] for core in cores}
-    # permutated_indices = np.arange(len(timestamps))
+    permutated_indices = np.arange(len(timestamps))
+    for core in cores:
 
+        low = split_intervals[0]
+        for high in list(split_intervals[1:]):
+            cur_permutated_indices = permutated_indices[low:high]
             # scaled_through = scaled_throughputs[core][cur_permutated_indices]
             # scaled_lat = scaled_avg_latency[core][cur_permutated_indices]
 
             # cluster_indices = kmeans[core].predict(list(zip(scaled_through, scaled_lat)))
-            # cluster_indices = predicted_clusters
+            cluster_indices = predicted_clusters[core][cur_permutated_indices]
             # cluster_indices[through == 0] = n_clusters
 
-    # zipped_cluster_indices = np.column_stack((permutated_indices, predicted_clusters))
-    enumerated_predicted_clusters = np.array(list(enumerate(predicted_clusters)))
-    sorted_cluster_indices = np.array(sorted(enumerated_predicted_clusters, key=lambda x : x[1]))
+            zipped_cluster_indices = np.column_stack((cur_permutated_indices, cluster_indices))
+            sorted_cluster_indices = np.array(sorted(zipped_cluster_indices, key=lambda x : x[1]))
 
-    permutated_indices = sorted_cluster_indices[:,0]
+            permutated_indices[low:high] = sorted_cluster_indices[:,0]
 
-    count = Counter(sorted_cluster_indices[:,1])
+            count = Counter(sorted_cluster_indices[:,1])
 
-    time_index = 0
-    interval_index = 0
-    # interval_index = split_intervals.index(low)
+            time_index = low
+            interval_index = split_intervals.index(low)
 
-    # print(f'{low = }, {high = }')
-    # print(f'{core}: {split_fitted_throughputs = }')
+            # print(f'{low = }, {high = }')
+            # print(f'{core}: {split_fitted_throughputs = }')
 
 
-    # first_cluster = True
-    for cluster in range(n_clusters):
-        if count[cluster] == 0:
-            continue
+            # first_cluster = True
+            for cluster in range(n_clusters):
+                if count[cluster] == 0:
+                    continue
 
-        # if first_cluster:
-        #     first_cluster = False
-        # else:
-        #     for prev_core in cores[:core_index]:
-        #         split_fitted_throughputs[prev_core].insert(interval_index,
-        #                                             split_fitted_throughputs[prev_core][interval_index - 1])
+                # if first_cluster:
+                #     first_cluster = False
+                # else:
+                #     for prev_core in cores[:core_index]:
+                #         split_fitted_throughputs[prev_core].insert(interval_index,
+                #                                             split_fitted_throughputs[prev_core][interval_index - 1])
 
-        # split_fitted_throughputs[core].append(kmeans[core].cluster_centers_[cluster][0])
-        # split_fitted_throughputs[core].append()
-        time_index += count[cluster]
-        if time_index in split_intervals:
-            continue
+                # split_fitted_throughputs[core].append(kmeans[core].cluster_centers_[cluster][0])
+                # split_fitted_throughputs[core].append()
+                time_index += count[cluster]
+                if time_index in split_intervals:
+                    continue
 
-        split_intervals.insert(interval_index + 1, time_index)
-        interval_index += 1
+                split_intervals.insert(interval_index + 1, time_index)
+                interval_index += 1
 
             # print(count)
             # print(core, low, high, split_intervals, '\n')
-            # low = high
+            low = high
         # print(f'end, {core}: {split_fitted_throughputs = }\n')
 
     # print(f'{split_intervals = }')
@@ -125,10 +115,8 @@ def permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, s
 
     return data_dict
 
-def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=None):
-    if stepsize == None:
-        stepsize = STEPSIZE
-    data_dict = permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, stepsize=stepsize)
+def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name):
+    data_dict = permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name)
     cores = data_dict['cores']
     timestamps = data_dict['timestamps']
     end_time = data_dict['end_time']
@@ -137,7 +125,7 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
     permutated_indices = data_dict['permutated_indices']
     split_intervals = data_dict['split_intervals']
 
-    data_filename = f'data/split_throughs_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{end_time}.npy'
+    data_filename = f'data/split_throughs_lats_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{STEPSIZE}_{START_TIME}-{end_time}.npy'
 
     if os.path.exists(data_filename):
         print(f'Split throughputs and {other_data_name} have already been calculated')
@@ -151,17 +139,15 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
     # caps_lst = data_dict['caps_lst']
     # service_times_lst = data_dict['service_times_lst']
 
-    # print(cluster_centers)
-
-    split_fitted_throughputs = np.zeros((len(split_intervals) - 1, len(cores)))
-    split_fitted_other_data = np.zeros((len(split_intervals) - 1, len(cores)))
+    split_fitted_throughputs = {core : np.zeros(len(split_intervals) - 1) for core in cores}
+    split_fitted_other_data = {core : np.zeros(len(split_intervals) - 1) for core in cores}
 
     pops_lst = np.zeros((len(split_intervals) - 1, len(cores)))
     caps_lst = np.zeros((len(split_intervals) - 1, len(cores)))
     service_times_lst = np.zeros((len(split_intervals) - 1, len(cores)))
 
-    split_model_throughputs = np.zeros((len(split_intervals) - 1, len(cores)))
-    split_model_other_data = np.zeros((len(split_intervals) - 1, len(cores)))
+    split_model_throughputs = {core : np.zeros(len(split_intervals) - 1) for core in cores}
+    split_model_other_data = {core : np.zeros(len(split_intervals) - 1) for core in cores}
 
     low = split_intervals[0]
     for i, high in enumerate(split_intervals[1:]):
@@ -169,16 +155,13 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
         args = model(len(cores))
 
         # permutated_indices_part = permutated_indices[low:high]
-        # for core in cores:
-        #     # print(permutated_indices_part)
-        #     # print(predicted_clusters[core][permutated_indices_part])
-        #     # print(predicted_clusters[core][permutated_indices[low]].transpose())
-        #     split_fitted_throughputs[core][i], split_fitted_other_data[core][i] = \
-        #         cluster_centers[predicted_clusters[core][permutated_indices[low]]].transpose()
+        for core in cores:
+            # print(permutated_indices_part)
+            # print(predicted_clusters[core][permutated_indices_part])
+            # print(predicted_clusters[core][permutated_indices[low]].transpose())
+            split_fitted_throughputs[core][i], split_fitted_other_data[core][i] = \
+                cluster_centers[core][predicted_clusters[core][permutated_indices[low]]].transpose()
 
-        split_fitted_throughputs[i] = cluster_centers[i][:len(cores)]
-        split_fitted_other_data[i] = cluster_centers[i][len(cores):]
-        # print(split_fitted_throughputs[i], split_fitted_other_data[i])
             # avg_count_part = avg_count[core][permutated_indices_part]
             # avg_count_part = avg_count_part[avg_count_part != 0]
             # if len(avg_count_part):
@@ -193,33 +176,31 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
             #     split_fitted_throughputs[core][i] = kmeans[core].cluster_centers_[cluster_index][0]
             #     split_fitted_avg_latency[core][i] = np.sum(avg_latency_part) / len(avg_latency_part)
 
-        # mem_throughputs = np.array([split_fitted_throughputs[core][i] for core in cores])
-        # other_execution_data = np.array([split_fitted_other_data[core][i] for core in cores])
-        # args[0] = np.array(pops_lst[i], dtype=int)
-        pops, _, _, caps, service_times = find_all_params(split_fitted_throughputs[i],
-                                                          split_fitted_other_data[i],
-                                                          other_data_name)
+        mem_throughputs = np.array([split_fitted_throughputs[core][i] for core in cores])
+        other_execution_data = np.array([split_fitted_other_data[core][i] for core in cores])
+        args[0] = np.array(pops_lst[i], dtype=int)
+        pops, _, _, caps, service_times = find_all_params(mem_throughputs, other_execution_data, other_data_name)
         pops_lst[i] = pops
         caps_lst[i] = caps[:-1]
         service_times_lst[i] = service_times[:-1]
-        args[0] = pops
-        args[3][:-1] = np.array(caps_lst[i], dtype=int)
-        args[4][:-1] = service_times_lst[i]
-        waits, throughs = mva(*args)[1:3]
         for j, core in enumerate(cores):
+            args[0] = pops
+            args[3][:-1] = np.array(caps_lst[i], dtype=int)
+            args[4][:-1] = service_times_lst[i]
+            waits, throughs = mva(*args)[1:3]
 
-            split_model_throughputs[i][j] = throughs[j]
+            split_model_throughputs[core][i] = throughs[j]
             if other_data_name == 'avg_latency':
-                split_model_other_data[i][j] = waits[-1][j]
+                split_model_other_data[core][i] = waits[-1][j]
             else:
-                split_model_other_data[i][j] = throughs[j] * waits[-1][j]
+                split_model_other_data[core][i] = throughs[j] * waits[-1][j]
 
-            # print(f'{core = } on interval {low}-{high}')
-            # print(f'{pops = }\n{caps = }\n{service_times = }')
-            # print(f'{throughs[j] = }')
-            # print(f'{split_fitted_throughputs[i][j] = }')
-            # print(f'{split_model_other_data[i][j] = }')
-            # print(f'{split_fitted_other_data[i][j] = }\n')
+            print(f'{core = } on interval {low}-{high}')
+            print(f'{pops = }\n{caps = }\n{service_times = }')
+            print(f'{throughs[j] = }')
+            print(f'{split_fitted_throughputs[core][i] = }')
+            print(f'{split_model_other_data[core][i] = }')
+            print(f'{split_fitted_other_data[core][i] = }\n')
 
         low = high
 
@@ -228,14 +209,13 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
                  'cores' : cores,
                  'permutated_indices' : permutated_indices,
                  'split_intervals' : split_intervals,
-                 'predicted_clusters' : predicted_clusters,
-                 'split_fitted_throughputs' : split_fitted_throughputs.transpose(),
-                 'split_fitted_other_data' : split_fitted_other_data.transpose(),
-                 'pops_lst' : pops_lst.transpose(),
-                 'caps_lst' : caps_lst.transpose(),
-                 'service_times_lst' : service_times_lst.transpose(),
-                 'split_model_throughputs' : split_model_throughputs.transpose(),
-                 'split_model_other_data' : split_model_other_data.transpose()}
+                 'split_fitted_throughputs' : split_fitted_throughputs,
+                 'split_fitted_other_data' : split_fitted_other_data,
+                 'pops_lst' : pops_lst,
+                 'caps_lst' : caps_lst,
+                 'service_times_lst' : service_times_lst,
+                 'split_model_throughputs' : split_model_throughputs,
+                 'split_model_other_data' : split_model_other_data}
 
     np.save(data_filename, data_dict)
 
@@ -244,10 +224,8 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
     return data_dict
 
 
-def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=None):
-    if stepsize == None:
-        stepsize = STEPSIZE
-    data_dict = split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=stepsize)
+def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name):
+    data_dict = split_throughputs(file_nr, n_clusters, combine_cores, other_data_name)
     end_time = data_dict['end_time']
     timestamps = data_dict['timestamps']
     cores = data_dict['cores']
@@ -258,9 +236,10 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
     split_model_throughputs = data_dict['split_model_throughputs']
     split_model_other_data = data_dict['split_model_other_data']
 
-    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize)
+    data_dict = analyse_dram_data(file_nr, combine_cores)
     throughputs = data_dict['throughputs']
     other_data = data_dict[other_data_name]
+
 
     ylabels = ['throughput', other_data_name]
     real_vals_lst = [throughputs, other_data]
@@ -269,14 +248,14 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
     names = ['fitted_throughput', 'fitted_access_latency']
 
     subplot_nr = 0
-    fig = plt.figure(figsize=(len(cores) * 3,5), dpi=150)
+    fig = plt.figure(figsize=(5,5), dpi=150)
     for ylabel, real_vals, fitted_vals, model_vals, name in zip(ylabels, real_vals_lst, fitted_vals_lst, model_vals_lst, names):
 
         for i, core in enumerate(cores):
             ax = fig.add_subplot(2, len(cores), i + 1 + subplot_nr)
             ax.vlines(x=timestamps, ymin=np.zeros(len(timestamps)), ymax=real_vals[core][permutated_indices], alpha=0.5)
             low = split_intervals[0]
-            for fitted_y, model_y, high in zip(fitted_vals[i], model_vals[i], split_intervals[1:]):
+            for fitted_y, model_y, high in zip(fitted_vals[core], model_vals[core], split_intervals[1:]):
                 xmax = end_time if high == len(timestamps) else timestamps[high]
                 labels = ['desired', 'model'] if low == split_intervals[0] else ['', '']
                 ax.hlines(y=fitted_y, xmin=timestamps[low], xmax=xmax, linestyles='-', color='r', label=labels[0])
@@ -286,22 +265,18 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
             if subplot_nr == 0:
                 ax.set_xticklabels([])
             else:
-                ax.set_xlabel('permutated time (ns)')
-            if subplot_nr == 0 and not combine_cores:
+                ax.set_xlabel('permuted time (ns)')
+            if subplot_nr == 0:
                 ax.set_title(f'Core {int(core)}')
-            elif subplot_nr == 0:
-                ax.set_title(f'Combined cores')
 
             # ax.set_yscale('log')
             # ax.set_ylim([min(vals[vals != 0]), 2 * max(vals)])
-            if core == cores[0]:
-                ax.set_ylabel(ylabel)
+            ax.set_ylabel(ylabel)
             fig.tight_layout()
-            if subplot_nr == 0 and core == cores[-1]:
-                ax.legend()
+            ax.legend()
         subplot_nr += len(cores)
 
-    fig.savefig(f'pictures/perm_time/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{int(end_time)}')
+    fig.savefig(f'pictures/perm_time/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{STEPSIZE}_{START_TIME}-{end_time}')
 
 # def benchmark_params(file_nr, n_clusters):
 #     data_dict = split_throughputs_latency(file_nr, n_clusters)
@@ -312,7 +287,7 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
 #     split_fitted_throughputs = data_dict['split_fitted_throughputs']
 #     split_fitted_avg_latency = data_dict['split_fitted_avg_latency']
 
-#     # data_filename = f'data/params_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{end_time}.npy'
+#     # data_filename = f'data/params_{file_nr}_{n_clusters}_{STEPSIZE}_{START_TIME}-{end_time}.npy'
 
 #     # if os.path.exists(data_filename):
 #     #     print('Params have already been calculated')
@@ -392,16 +367,13 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
 if __name__ == '__main__':
     benchmark = 'parsec-bodytrack'
     file_nr = DATA_FILES[benchmark][1]
-    n_clusters = 10
+    n_clusters = 15
+    combine_cores = True
     # benchmark_params(file_nr, n_clusters)
-    # stepsize = 1_000
+    # STEPSIZE = 1_000
     # START_TIME = 0
     # END_TIME = 1_000_000
-    combine_cores = False
-    other_data_name = 'avg_count'
-    # for other_data_name in ['avg_latency', 'avg_count']:
-    for combine_cores in [True, False]:
-        # print(combine_cores)
+    for other_data_name in ['avg_latency', 'avg_count']:
         plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name)
     # for num in range(1, 2):
     #     file_nr = DATA_FILES[benchmark][num]

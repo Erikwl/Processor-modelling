@@ -88,9 +88,11 @@ def divide_proportional(vals, n):
     #         remainder -= 1
     return np.array(lst, dtype=int)
 
-def find_all_params(throughs, waiting_times):
+def find_all_params(throughs, other_execution_data, other_data_name):
     R = len(throughs)
     M = R + 1
+    tol = 0.5 if other_data_name == 'avg_latency' else 0.05
+
     def f(pops):
         args_cpy = args.copy()
         args_cpy[0] = pops
@@ -100,7 +102,11 @@ def find_all_params(throughs, waiting_times):
         #     exit(0)
         # args[4] = new_service_times
         args_cpy[4][:-1] = service_times
-        return neg_service_times, service_times, mva(*args_cpy)[1][-1] - waiting_times
+        waits, model_throughs = mva(*args_cpy)[1:3]
+        nrs = np.multiply(model_throughs, waits[-1])
+        if other_data_name == 'avg_latency':
+            return neg_service_times, service_times, waits[-1] - other_execution_data
+        return neg_service_times, service_times, nrs - other_execution_data
 
     args = model(R)
     args[3][:-1] = np.ones(R, dtype=int) # Capacities of cores
@@ -109,13 +115,14 @@ def find_all_params(throughs, waiting_times):
     # pops = divide_proportional(waiting_times, total_pop)
     pops = np.zeros(len(throughs), dtype=int)
     for i, through in enumerate(throughs):
-        if through:
+        if through > 10e-7:
             pops[i] += 1
     # print(f'pop divided: {pops = }, {waiting_times = }')
 
     neg_service_times, service_times, diff = f(pops)
     if not neg_service_times and np.sum(diff) > 0:
         # print(pops, throughs, waiting_times, f(pops))
+        print(1, diff)
         args[0] = pops
         args[4][:-1] = service_times
         return args
@@ -144,7 +151,7 @@ def find_all_params(throughs, waiting_times):
 
         # print(f'{pops = }, {throughs = }, {neg_service_times = }\n{old_diff = }, {diff = }')
         if not neg_service_times \
-            and (np.sum(abs(old_diff - diff)) < 0.2 or max(pops) == MAX_POP_SIZE) \
+            and (np.sum(abs(old_diff - diff)) < tol / 3 or max(pops) == MAX_POP_SIZE) \
             and (np.sum(pops) >= CAP_MEM + 2):
             # print('Warning: Waiting time could not be reached:')
             # print(f'Desired waiting times: {waiting_times}')
@@ -153,7 +160,8 @@ def find_all_params(throughs, waiting_times):
             # print(f'{np.sum(abs(old_diff - diff)) = }')
             # print(f'{neg_service_times = }')
             break
-        if not neg_service_times and np.sum(diff) > -0.5 * len(throughs):
+        if not neg_service_times and np.sum(diff) > - tol * len(throughs):
+            print(2, diff)
             break
         best_lower_pops = np.copy(pops)
         best_lower_diff = np.sum(diff)

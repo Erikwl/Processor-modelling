@@ -1,11 +1,9 @@
-import numpy as np
-
 RESULTS_PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/CoMeT/results/'
 PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/'
 ACCESS_DATA_PATH = PATH + 'data/dram_access_data/'
 
 DATA_FILES = {'parsec-blackscholes' : {1 : 128, 2 : 129, 3 : 130},
-              'parsec-bodytrack'    : {1 : 125, 2 : 126, 3 : 127},
+              'parsec-bodytrack'    : {1 : 206, 2 : 126, 3 : 127},
             #   'parsec-blackscholes' : {1 : 109, 2 : 110, 3 : 111},
             #   'parsec-bodytrack'    : {1 : 112, 2 : 113, 3 : 114},
               'parsec-dedup' : {1 : 132},
@@ -38,11 +36,16 @@ BENCHMARKS = [
             ]
 
 # DRAM data constants
-STEPSIZE = 100
-# START_TIME = 21_000_000
-START_TIME = 0
-# END_TIME = 21_200_000
-END_TIME = 100_000
+STEPSIZE = 1000
+# STEPSIZE = 1_000_000
+# START_TIME = 930_310_000
+START_TIME = 932_533_200
+# START_TIME = 0
+# END_TIME = 930_320_000
+# END_TIME = 932_534_000
+END_TIME = 932_600_000
+# END_TIME = 8_000
+# END_TIME = -1
 
 # Mem constants.
 CAP_MEM = 1
