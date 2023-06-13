@@ -9,22 +9,19 @@ import os
 from constants import *
 from data_retrieval import *
 
-def permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, stepsize=None):
-    if stepsize == None:
-        stepsize = STEPSIZE
-    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize)
+def permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
+    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize, start_time=start_time, end_time=end_time)
     end_time = data_dict['end_time']
     timestamps = data_dict['timestamps']
     cores = data_dict['cores']
     throughputs = data_dict['throughputs']
     other_data = data_dict[other_data_name]
 
+    data_filename = f'data/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{start_time}-{end_time}.npy'
 
-    data_filename = f'data/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{end_time}.npy'
-
-    if os.path.exists(data_filename):
-        print('Permutated timestamps have already been calculated.')
-        return np.load(data_filename, allow_pickle=True)[()]
+    # if os.path.exists(data_filename):
+    #     print('Permutated timestamps have already been calculated.')
+    #     return np.load(data_filename, allow_pickle=True)[()]
 
     # scalers = {core : StandardScaler() for core in cores}
     # scaled_throughputs = {core : scaler.fit_transform(throughputs[core]) for core in cores}
@@ -47,7 +44,6 @@ def permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, s
     kmeans = KMeans(n_clusters=min(len(np.unique(scaled_data)), n_clusters), n_init=20).fit(scaled_data)
     predicted_clusters = kmeans.predict(scaled_data)
     cluster_centers = scaler.inverse_transform(kmeans.cluster_centers_)
-
 
     print('Clusters have been created.')
     # for core in cores:
@@ -125,10 +121,8 @@ def permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, s
 
     return data_dict
 
-def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=None):
-    if stepsize == None:
-        stepsize = STEPSIZE
-    data_dict = permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, stepsize=stepsize)
+def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
+    data_dict = permutated_timestamps(file_nr, n_clusters, combine_cores, other_data_name, stepsize=stepsize, start_time=start_time, end_time=end_time)
     cores = data_dict['cores']
     timestamps = data_dict['timestamps']
     end_time = data_dict['end_time']
@@ -137,7 +131,7 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
     permutated_indices = data_dict['permutated_indices']
     split_intervals = data_dict['split_intervals']
 
-    data_filename = f'data/split_throughs_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{end_time}.npy'
+    data_filename = f'data/split_throughs_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{start_time}-{end_time}.npy'
 
     if os.path.exists(data_filename):
         print(f'Split throughputs and {other_data_name} have already been calculated')
@@ -244,10 +238,8 @@ def split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, steps
     return data_dict
 
 
-def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=None):
-    if stepsize == None:
-        stepsize = STEPSIZE
-    data_dict = split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=stepsize)
+def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, only_throughput=False, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
+    data_dict = split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, stepsize=stepsize, start_time=start_time, end_time=end_time)
     end_time = data_dict['end_time']
     timestamps = data_dict['timestamps']
     cores = data_dict['cores']
@@ -258,7 +250,7 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
     split_model_throughputs = data_dict['split_model_throughputs']
     split_model_other_data = data_dict['split_model_other_data']
 
-    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize)
+    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize, start_time=start_time, end_time=end_time)
     throughputs = data_dict['throughputs']
     other_data = data_dict[other_data_name]
 
@@ -266,15 +258,23 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
     real_vals_lst = [throughputs, other_data]
     fitted_vals_lst = [split_fitted_throughputs, split_fitted_other_data]
     model_vals_lst = [split_model_throughputs, split_model_other_data]
-    names = ['fitted_throughput', 'fitted_access_latency']
+
+    if only_throughput:
+        real_vals_lst = [throughputs]
+        fitted_vals_lst = [split_fitted_throughputs]
+        model_vals_lst = [split_model_throughputs]
 
     subplot_nr = 0
-    fig = plt.figure(figsize=(len(cores) * 3,5), dpi=150)
-    for ylabel, real_vals, fitted_vals, model_vals, name in zip(ylabels, real_vals_lst, fitted_vals_lst, model_vals_lst, names):
+    fig = plt.figure(figsize=(len(cores) * 5,4), dpi=150)
+    for ylabel, real_vals, fitted_vals, model_vals in zip(ylabels, real_vals_lst, fitted_vals_lst, model_vals_lst):
 
         for i, core in enumerate(cores):
-            ax = fig.add_subplot(2, len(cores), i + 1 + subplot_nr)
-            ax.vlines(x=timestamps, ymin=np.zeros(len(timestamps)), ymax=real_vals[core][permutated_indices], alpha=0.5)
+            if only_throughput:
+                ax = fig.add_subplot(1, len(cores), i + 1 + subplot_nr)
+            else:
+                ax = fig.add_subplot(2, len(cores), i + 1 + subplot_nr)
+
+            ax.vlines(x=timestamps, ymin=np.zeros(len(timestamps)), ymax=real_vals[core][permutated_indices])
             low = split_intervals[0]
             for fitted_y, model_y, high in zip(fitted_vals[i], model_vals[i], split_intervals[1:]):
                 xmax = end_time if high == len(timestamps) else timestamps[high]
@@ -283,7 +283,8 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
                 ax.hlines(y=model_y, xmin=timestamps[low], xmax=xmax, linestyles='-', color='black', label=labels[1])
                 low = high
 
-            if subplot_nr == 0:
+
+            if subplot_nr == 0 and not only_throughput:
                 ax.set_xticklabels([])
             else:
                 ax.set_xlabel('permutated time (ns)')
@@ -301,7 +302,7 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
                 ax.legend()
         subplot_nr += len(cores)
 
-    fig.savefig(f'pictures/perm_time/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{int(end_time)}')
+    fig.savefig(f'pictures/perm_time/perm_time_{combine_cores}_{other_data_name}_{file_nr}_{n_clusters}_{stepsize}_{start_time}-{int(end_time)}')
 
 # def benchmark_params(file_nr, n_clusters):
 #     data_dict = split_throughputs_latency(file_nr, n_clusters)
@@ -312,7 +313,7 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
 #     split_fitted_throughputs = data_dict['split_fitted_throughputs']
 #     split_fitted_avg_latency = data_dict['split_fitted_avg_latency']
 
-#     # data_filename = f'data/params_{file_nr}_{n_clusters}_{stepsize}_{START_TIME}-{end_time}.npy'
+#     # data_filename = f'data/params_{file_nr}_{n_clusters}_{stepsize}_{start_time}-{end_time}.npy'
 
 #     # if os.path.exists(data_filename):
 #     #     print('Params have already been calculated')
@@ -392,17 +393,55 @@ def plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name, 
 if __name__ == '__main__':
     benchmark = 'parsec-bodytrack'
     file_nr = DATA_FILES[benchmark][1]
-    n_clusters = 10
-    # benchmark_params(file_nr, n_clusters)
-    # stepsize = 1_000
-    # START_TIME = 0
-    # END_TIME = 1_000_000
-    combine_cores = False
-    other_data_name = 'avg_count'
-    # for other_data_name in ['avg_latency', 'avg_count']:
-    for combine_cores in [True, False]:
-        # print(combine_cores)
-        plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name)
-    # for num in range(1, 2):
-    #     file_nr = DATA_FILES[benchmark][num]
-    #     benchmark_params(file_nr)
+    # n_clusters = 10
+    # combine_cores = False
+    # other_data_name = 'avg_count'
+    # # for other_data_name in ['avg_latency', 'avg_count']:
+    # for combine_cores in [True, False]:
+    #     # print(combine_cores)
+    #     plot_split_throughputs(file_nr, n_clusters, combine_cores, other_data_name)
+    # # for num in range(1, 2):
+    # #     file_nr = DATA_FILES[benchmark][num]
+    # #     benchmark_params(file_nr)
+
+    # # avg count plot
+    # n_clusters = 10
+    # other_data_name = 'avg_count'
+    # combine_cores = False
+    # stepsize = 10000
+    # start_time = 9_300_000_000
+    # end_time = 9_310_000_000
+    # plot_split_throughputs(file_nr, n_clusters, combine_cores=combine_cores, other_data_name=other_data_name,
+    #                        stepsize=stepsize, start_time=start_time, end_time=end_time)
+
+    # # avg latency plot
+    # n_clusters = 10
+    # other_data_name = 'avg_latency'
+    # combine_cores = False
+    # stepsize = 10000
+    # start_time = 9_300_000_000
+    # end_time = 9_310_000_000
+    # plot_split_throughputs(file_nr, n_clusters, combine_cores=combine_cores, other_data_name=other_data_name,
+    #                        stepsize=stepsize, start_time=start_time, end_time=end_time)
+
+
+    # # The cores separate
+    # n_clusters = 6
+    # other_data_name = 'avg_count'
+    # combine_cores = False
+    # stepsize = 1000
+    # start_time = 927_500_000
+    # end_time = 927_800_000
+    # plot_split_throughputs(file_nr, n_clusters, combine_cores=combine_cores, other_data_name=other_data_name,
+    #                        stepsize=stepsize, start_time=start_time, end_time=end_time, only_throughput=True)
+
+    # # The cores combined
+    # n_clusters = 6
+    # other_data_name = 'avg_count'
+    # combine_cores = True
+    # stepsize = 1000
+    # start_time = 927_500_000
+    # end_time = 927_800_000
+    # plot_split_throughputs(file_nr, n_clusters, combine_cores=combine_cores, other_data_name=other_data_name,
+    #                        stepsize=stepsize, start_time=start_time, end_time=end_time, only_throughput=True)
+

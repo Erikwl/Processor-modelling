@@ -122,7 +122,7 @@ def find_all_params(throughs, other_execution_data, other_data_name):
     neg_service_times, service_times, diff = f(pops)
     if not neg_service_times and np.sum(diff) > 0:
         # print(pops, throughs, waiting_times, f(pops))
-        print(1, diff)
+        # print(1, diff)
         args[0] = pops
         args[4][:-1] = service_times
         return args
@@ -161,7 +161,7 @@ def find_all_params(throughs, other_execution_data, other_data_name):
             # print(f'{neg_service_times = }')
             break
         if not neg_service_times and np.sum(diff) > - tol * len(throughs):
-            print(2, diff)
+            # print(2, diff)
             break
         best_lower_pops = np.copy(pops)
         best_lower_diff = np.sum(diff)

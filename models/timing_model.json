@@ -1,5 +1,5 @@
 {
-    "population vector": [3,4,6],
+    "population vector": [30,40,40],
     "reference stations": [1, 1, 1],
     "visits": [[1, 1, 1.5],
                [2, 2, 1],

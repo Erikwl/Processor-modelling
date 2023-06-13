@@ -167,11 +167,11 @@ def one_benchmark_parallellism_accuracy(benchmark, n_clusters, stepsize=None):
     modelled_response_times = []
     real_response_times = []
     for parallellism in parallellisms:
+        file_nrs = DATA_PARALELLISM_FILES[benchmark][1][:parallellism]
         file_nr = DATA_FILES[benchmark][parallellism]
-        data = retrieve_data(file_nr, True)
+        data = retrieve_data(file_nr, combine_cores=True)
         real_response_times.append(data[-1,0] + data[-1,2])
 
-        file_nrs = [DATA_FILES[benchmark][1]] * parallellism
         modelled_response_times.append(max(parallel_benchmarks_sim(file_nrs, n_clusters, stepsize=stepsize).values()))
 
     return real_response_times, modelled_response_times

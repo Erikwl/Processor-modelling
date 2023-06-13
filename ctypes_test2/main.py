@@ -44,7 +44,7 @@ def time_execution(args):
     print(f'The mva algo took {(current_time() - start):.4f} s')
 
 def verify_model():
-    args = read_json('models/verification_model.json')
+    args = read_json('../models/verification_model.json')
     perf_measures = mva(*args)
     # print(perf_measures)
     for i, name in enumerate(['numbers', 'waits', 'throughputs', 'utils', 'probs']):
@@ -57,5 +57,5 @@ if __name__ == '__main__':
         verify_model()
     # Time the model.
     elif num == 1:
-        args = read_json('models/timing_model.json')
+        args = read_json('../models/timing_model.json')
         time_execution(args)

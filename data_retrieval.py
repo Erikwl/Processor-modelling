@@ -190,85 +190,104 @@ def retrieve_data(file_nr, combine_cores):
 
 
 
-def analyse_dram_data(file_nr, combine_cores, stepsize=None):
-    if stepsize == None:
-        stepsize = STEPSIZE
+def analyse_dram_data(file_nr, combine_cores, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
     data = retrieve_data(file_nr, combine_cores)
-    if END_TIME == -1:
-        end_time = data[-1,0] + data[-1,2] # Last dram access + latency
-    else:
-        end_time = END_TIME
+    if end_time == -1:
+        end_time = data[-1,0] + data[-1,2]
 
-    data_filename = f'data/analysed_data_{combine_cores}_{file_nr}_{stepsize}_{START_TIME}-{end_time}.npy'
+    data_filename = f'data/analysed_data_{combine_cores}_{file_nr}_{stepsize}_{start_time}-{end_time}.npy'
     if os.path.exists(data_filename):
         print('DRAM data has already been analysed.')
         return np.load(data_filename, allow_pickle=True)[()]
 
-    filter = np.all([data[:,0] >= START_TIME, data[:,0] + data[:,2] <= end_time], axis=0)
+    filter = np.all([data[:,0] >= start_time, data[:,0] + data[:,2] <= end_time], axis=0)
     data = data[filter]
     cores = np.unique(data[:,1])
-    nr_bins = int(np.ceil((end_time - START_TIME) / stepsize))
-    timestamps = np.arange(START_TIME, end_time, stepsize)
+    nr_bins = int(np.ceil((end_time - start_time) / stepsize))
+    timestamps = np.arange(start_time, end_time, stepsize)
 
     throughputs = {core : np.zeros([nr_bins]) for core in cores}
-    avg_count = {core : np.zeros([nr_bins]) for core in cores}
-    total_latency = {core : np.zeros([nr_bins]) for core in cores}
-    total_count_latency = {core : np.zeros([nr_bins]) for core in cores}
+    throughputs_type = {core : np.zeros([2, nr_bins]) for core in cores}
 
-    for t, core, latency in data:
+    avg_count = {core : np.zeros([nr_bins]) for core in cores}
+    avg_count_type = {core : np.zeros([2, nr_bins]) for core in cores}
+
+    total_latency = {core : np.zeros([nr_bins]) for core in cores}
+    total_latency_type = {core : np.zeros([2, nr_bins]) for core in cores}
+
+    total_count_latency = {core : np.zeros([nr_bins]) for core in cores}
+    total_count_latency_type = {core : np.zeros([2, nr_bins]) for core in cores}
+
+    for t, core, latency, type in data:
+        type = int(type)
         # if t > 388260000 - 1000 and t < 388260000 + 2000:
-        # print(t, core, latency)
-        index = int((t - START_TIME) / stepsize)
+        index = int((t - start_time) / stepsize)
         t -= timestamps[index]
         # start_latency = latency
         # queueing_time = latency - SERVICE_TIME_MEM
         # execution_begin = t + latency - SERVICE_TIME_MEM
         # execution_end = t + latency
-        # index = int((execution_begin - START_TIME) / stepsize)
+        # index = int((execution_begin - start_time) / stepsize)
         # start = execution_begin - timestamps[index]
         # end = start + SERVICE_TIME_MEM
 
         total_latency[core][index] += latency
-        total_count_latency[core][index] += 1
+        total_latency_type[core][type][index] += latency
 
+        total_count_latency[core][index] += 1
+        total_count_latency_type[core][type][index] += 1
 
         while latency:
             if index >= nr_bins:
                 break
             if t + latency >= stepsize:
                 avg_count[core][index] += (stepsize - t) / stepsize
+                avg_count_type[core][type][index] += (stepsize - t) / stepsize
                 # total_latency[core][index] += stepsize - t
                 # total_count_latency[core][index] += (stepsize - t) / start_latency
                 if t + latency - SERVICE_TIME_MEM < stepsize:
                     throughputs[core][index] += (stepsize - (t + latency - SERVICE_TIME_MEM)) / SERVICE_TIME_MEM
+                    throughputs_type[core][type][index] += (stepsize - (t + latency - SERVICE_TIME_MEM)) / SERVICE_TIME_MEM
                 latency -= stepsize - t
                 t = 0
                 index += 1
             else:
                 avg_count[core][index] += latency / stepsize
+                avg_count_type[core][type][index] += latency / stepsize
+
                 # total_latency[core][index] += latency
                 # total_count_latency[core][index] += latency / start_latency
                 throughputs[core][index] += latency / max(SERVICE_TIME_MEM, latency)
+                throughputs_type[core][type][index] += latency / max(SERVICE_TIME_MEM, latency)
                 break
     # print(f'throughput: {len(data) / stepsize}')
     # print(f'avg_count: {np.sum(data[:,2]) / stepsize}')
     # print(f'avg_latency: {np.sum(data[:,2]) / len(data)}')
+    # print(avg_count)
+    # print(avg_count_type)
 
     avg_latency = {core : np.divide(total_latency[core], total_count_latency[core],
                                     out=np.zeros(len(total_latency[core])),
                                     where=total_count_latency[core]!=0) for core in cores}
+    avg_latency_type = {core : np.divide(total_latency_type[core], total_count_latency_type[core],
+                                    out=np.zeros_like(total_latency_type[core]),
+                                    where=total_count_latency_type[core]!=0) for core in cores}
 
 
     for core in cores:
         throughputs[core] /= stepsize
+        throughputs_type[core] /= stepsize
 
     data_dict = {'end_time' : end_time,
                  'timestamps' : timestamps,
                  'cores' : cores,
                  'timestamps' : timestamps,
                  'throughputs' : throughputs,
+                 'throughputs_type' : throughputs_type,
                  'avg_count' : avg_count,
-                 'avg_latency' : avg_latency}
+                 'avg_count_type' : avg_count_type,
+                 'avg_latency' : avg_latency,
+                 'avg_latency_type' : avg_latency_type}
 
     np.save(data_filename, data_dict)
     print('Analysed DRAM data has been saved.')
@@ -329,11 +348,14 @@ def analyse_dram_data(file_nr, combine_cores, stepsize=None):
 #     return data_dict
 
 
-def plot_time_plot(file_nr, combine_cores, stepsize=None):
+def plot_time_plot(file_nr, combine_cores, only_throughput=False, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
     def plot_bar_chart(subplot_num, vals, xlabel='',
                        ylabel='', title=False, logscale=False, ticks=False, ymin=1E-1):
         for index, core in enumerate(cores):
-            ax = fig.add_subplot(2, len(cores), index + 1 + subplot_num * len(cores))
+            if only_throughput:
+                ax = fig.add_subplot(1, len(cores), index + 1 + subplot_num * len(cores))
+            else:
+                ax = fig.add_subplot(2, len(cores), index + 1 + subplot_num * len(cores))
             ax.vlines(x=timestamps / 1_000_000, ymin=np.zeros(len(timestamps)), ymax=vals[core])
 
             if logscale:
@@ -344,45 +366,52 @@ def plot_time_plot(file_nr, combine_cores, stepsize=None):
             if xlabel:
                 ax.set_xlabel(xlabel)
             if title:
-                ax.set_title(f'Core {int(core)}')
+                title = 'Combined cores' if combine_cores else f'Core {int(core)}'
+                ax.set_title(title)
             if core == cores[0]:
                 ax.set_ylabel(ylabel)
 
-    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize)
+    data_dict = analyse_dram_data(file_nr, combine_cores, stepsize=stepsize, start_time=start_time, end_time=end_time)
     end_time = data_dict['end_time']
     timestamps = data_dict['timestamps']
     cores = data_dict['cores']
     # avg_count = data_dict['avg_count']
     throughputs = data_dict['throughputs']
     avg_latency = data_dict['avg_latency']
-    fig = plt.figure(figsize=(len(cores) * 4,5), dpi=150)
+    if only_throughput:
+        fig = plt.figure(figsize=(len(cores) * 4,3), dpi=150)
+    else:
+        fig = plt.figure(figsize=(len(cores) * 4,5), dpi=150)
 
     # plot_bar_chart(0, avg_count, ylabel='average number of requests',
     #                 title=True)
-    plot_bar_chart(0, throughputs, ylabel='throughput', title=True)
-    plot_bar_chart(1, avg_latency, xlabel='time (ms)', ylabel='access latency', ticks=True)
+    if only_throughput:
+        plot_bar_chart(0, throughputs, xlabel='time (ms)', ylabel='throughput', ticks=True, title=True)
+    else:
+        plot_bar_chart(0, throughputs, ylabel='throughput', title=True)
+        plot_bar_chart(1, avg_latency, xlabel='time (ms)', ylabel='access latency', ticks=True)
 
     fig.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.9)
     fig.tight_layout()
-    fig.savefig(f'pictures/time_plot/time_plot_{file_nr}_{stepsize}_{START_TIME}-{end_time}.png')
+    fig.savefig(f'pictures/time_plot/time_plot_{file_nr}_{stepsize}_{start_time}-{end_time}.png')
 
-def plot_correlation(file_nr, stepsize=None):
+def plot_littles_law(file_nr, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
     # data[:,1] = 0
-    data_dict = analyse_dram_data(file_nr, combine_cores=True, stepsize=stepsize)
+    data_dict = analyse_dram_data(file_nr, combine_cores=True, stepsize=stepsize, start_time=start_time, end_time=end_time)
     end_time = data_dict['end_time']
-    timestamps = data_dict['timestamps']
-    # cores = data_dict['cores']
-    throughputs = data_dict['throughputs']
-    avg_latency = data_dict['avg_latency']
-    avg_count = data_dict['avg_count']
+    # timestamps = data_dict['timestamps']
+    cores = data_dict['cores']
+    throughputs = data_dict['throughputs'][cores[0]]
+    avg_latency = data_dict['avg_latency'][cores[0]]
+    avg_count = data_dict['avg_count'][cores[0]]
     diff = np.multiply(throughputs, avg_latency) - avg_count
     # print(f'{throughputs = }')
     # print(f'{avg_count = }')
     # print(f'{avg_latency = }')
     # print(f'{diff = }')
-    relative_diff = np.abs(np.divide(diff, avg_count,
+    relative_diff = np.divide(diff, avg_count,
                                 out=np.zeros(len(diff)),
-                                where=avg_latency!=0))
+                                where=avg_latency!=0)
     # print(f'{throughputs = }')
     # print(f'{avg_count = }')
     # print(f'{avg_latency = }')
@@ -416,59 +445,83 @@ def plot_correlation(file_nr, stepsize=None):
 
     # avg = np.mean(relative_diff)
 
-    x_values = avg_count
-    log_x_values = avg_count[avg_count != 0]
-    log_y_values = relative_diff[avg_count != 0]
-    # y_values = relative_diff
-    num_bins = 20
-    x_min, x_max = min(log_x_values), max(log_x_values)
-    log_x_min = np.log10(x_min)
-    log_x_min = -2
-    log_x_max = np.log10(x_max)
-    log_bin_size = (log_x_max - log_x_min) / num_bins
-    avgs = []
-    centers = []
+    # x_values = avg_count
+    # log_x_values = x_values[x_values != 0]
+    # log_y_values = relative_diff[x_values != 0]
+    # # y_values = relative_diff
+    # num_bins = 20
+    # x_min, x_max = min(log_x_values), max(log_x_values)
+    # log_x_min = np.log10(x_min)
+    # log_x_min = -2
+    # log_x_max = np.log10(x_max)
+    # log_bin_size = (log_x_max - log_x_min) / num_bins
+    # avgs = []
+    # centers = []
 
 
-    # Iterate over each bin
-    for i in range(num_bins):
-        log_bin_start = log_x_min + i * log_bin_size
-        log_bin_end = log_bin_start + log_bin_size
+    # # Iterate over each bin
+    # for i in range(num_bins):
+    #     log_bin_start = log_x_min + i * log_bin_size
+    #     log_bin_end = log_bin_start + log_bin_size
 
-        print(log_bin_start, log_bin_end)
+    #     bin_indices = np.where((np.log10(log_x_values) >= log_bin_start) & (np.log10(log_x_values) < log_bin_end))[0]
+    #     # print(np.log10(log_x_values) >= log_bin_start)
+    #     # print(np.log10(log_x_values) < log_bin_end)
+    #     # print(len(bin_indices))
+    #     bin_average = np.mean(log_y_values[bin_indices])
+    #     # # print(bin_average)
+    #     # if i == 19:
+    #     #     print(x_values[bin_indices])
+    #     #     print(log_y_values[bin_indices])
+    #     #     print(bin_indices)
 
-        bin_indices = np.where((np.log10(log_x_values) >= log_bin_start) & (np.log10(log_x_values) < log_bin_end))[0]
-        # print(np.log10(log_x_values) >= log_bin_start)
-        # print(np.log10(log_x_values) < log_bin_end)
-        # print(len(bin_indices))
-        bin_average = np.mean(log_y_values[bin_indices])
-        # # print(bin_average)
-        # if i == 19:
-        #     print(x_values[bin_indices])
-        #     print(log_y_values[bin_indices])
-        #     print(bin_indices)
+    #     # Store the bin average and center value
+    #     avgs.append(bin_average)
+    #     centers.append(10 ** (log_bin_start + log_bin_size / 2))
 
-        # Store the bin average and center value
-        avgs.append(bin_average)
-        centers.append(10 ** (log_bin_start + log_bin_size / 2))
-
-    print(centers)
     plt.figure(figsize=(5,5), dpi=150)
-    plt.plot(centers, avgs, color='black', label='average')
+    # plt.plot(centers, avgs, color='black', label='average')
 
 
     plt.xlabel(r'$\overline{n}_M$')
-    plt.ylabel(r'$\left|\frac{\overline{w}_M\overline{x}_M - \overline{n}_M}{\overline{n}_M}\right|$')
-    plt.hlines(y=[0], xmin=[min(avg_count)], xmax=[max(avg_count)], color='r', label='desired value')
+    plt.ylabel('relative difference')
+            #    $\left|\frac{\overline{w}_M\overline{x}_M - \overline{n}_M}{\overline{n}_M}\right|$')
+    # plt.hlines(y=[0], xmin=[min(avg_count)], xmax=[max(avg_count)], color='r', label='desired value')
     # plt.hlines(y=[avg], xmin=[min(avg_count)], xmax=[max(avg_count)], color='black', label='average')
     plt.scatter(avg_count, relative_diff, s=1)
-    plt.legend()
+    # plt.legend()
     plt.tight_layout()
-    plt.savefig(f'pictures/littles_law/littles_law{stepsize}__{START_TIME}-{end_time}.png')
+    plt.savefig(f'pictures/littles_law/littles_law_{stepsize}__{start_time}-{end_time}.png')
 
-# def plot_different_correlations(data, stepsizes, START_TIME, end_time):
+
+def plot_littles_law_per_type(file_nr, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
+    data_dict = analyse_dram_data(file_nr, combine_cores=True, stepsize=stepsize, start_time=start_time, end_time=end_time)
+    end_time = data_dict['end_time']
+    # timestamps = data_dict['timestamps']
+    cores = data_dict['cores']
+    throughputs_type = data_dict['throughputs_type'][cores[0]]
+    avg_latency_type = data_dict['avg_latency_type'][cores[0]]
+    avg_count_type = data_dict['avg_count_type'][cores[0]]
+    diff = np.multiply(throughputs_type, avg_latency_type) - avg_count_type
+    relative_diff = np.divide(diff, avg_count_type,
+                                out=np.zeros_like(diff),
+                                where=avg_latency_type!=0)
+
+    for type in [0, 1]:
+        plt.figure(figsize=(5,5), dpi=150)
+        plt.xlabel(r'$\overline{n}_M$')
+        plt.ylabel(r'relative difference')
+                #    $\left|\frac{\overline{w}\overline{x} - \overline{n}}{\overline{n}}\right|$')
+        # plt.hlines(y=[0], xmin=[min(avg_count_type[type])], xmax=[max(avg_count_type[type])], color='r', label='desired value')
+        # plt.hlines(y=[avg], xmin=[min(avg_count)], xmax=[max(avg_count)], color='black', label='average')
+        plt.scatter(avg_count_type[type], relative_diff[type], s=1)
+        plt.tight_layout()
+        plt.savefig(f'pictures/littles_law/littles_law_{type}_{stepsize}__{start_time}-{end_time}.png')
+
+
+# def plot_different_correlations(data, stepsizes, start_time, end_time):
 #     for stepsize in stepsizes:
-#         plot_correlation(data, stepsize, START_TIME, end_time)
+#         plot_littles_law(data, stepsize, start_time, end_time)
 
 # def plot_DRAM_throughputs(file_nr):
 #     data_dict = retrieve_throughputs(file_nr)
@@ -480,83 +533,73 @@ def plot_correlation(file_nr, stepsize=None):
 #     plt.plot(timestamps, throughputs)
 #     plt.show()
 
-def plot_arrival_times(file_nr, stepsize=None):
+def plot_arrival_times(file_nr, detailed=False, stepsize=STEPSIZE, start_time=START_TIME, end_time=END_TIME):
     data = retrieve_data(file_nr, combine_cores=True)
-    if stepsize == None:
-        stepsize = STEPSIZE
-    if END_TIME == -1:
-        end_time = data[-1,0] + data[-1,2] + stepsize # Last dram access + latency
-    else:
-        end_time = END_TIME
-    print(0)
-    filter = np.all([data[:,0] >= START_TIME, data[:,0] + data[:,2] <= end_time], axis=0)
-    print(1)
+    end_time = data[-1,0] + data[-1,2] if end_time == -1 else end_time
+
+    filter = np.all([data[:,0] >= start_time, data[:,0] + data[:,2] <= end_time], axis=0)
     data = data[filter]
-    print(2)
-    print(len(data))
     fig = plt.figure(figsize=(5,5), dpi=150)
-    read_requests = np.array([x[0] for x in data if x[3] == 1])
-    read_requests_order = [i for i in range(len(data)) if data[i,3] == 1]
+    read_requests = np.array([x[0] for x in data if x[3] == 0])
+    read_requests_order = [i for i in range(len(data)) if data[i,3] == 0]
 
-    write_requests = np.array([x[0] for x in data if x[3] == 0])
-    write_requests_order = [i for i in range(len(data)) if data[i,3] == 0]
-    print(3)
-    print(len(read_requests))
+    write_requests = np.array([x[0] for x in data if x[3] == 1])
+    write_requests_order = [i for i in range(len(data)) if data[i,3] == 1]
 
-    plt.scatter(read_requests_order, read_requests, color='black', s=2, label='read request')
-    plt.scatter(write_requests_order, write_requests, color='green', s=2, label='write request')
-
-
-    # plt.scatter(read_requests_order, read_requests, marker='x', color='black', s=10, label='read request')
-    # plt.scatter(write_requests_order, write_requests, marker='o', color='green', s=10, label='write request')
-    # plt.vlines(x=range(len(data)), ymin=data[:,0], ymax=data[:,0] + data[:,2] - 9, label='waiting time for DRAM controller')
-    # plt.vlines(x=range(len(data)), ymin=data[:,0] + data[:,2] - 9, ymax=data[:,0] + data[:,2], color='red', label='serviced by DRAM controller')
+    ax = fig.add_subplot(1, 1, 1)
+    if detailed == False:
+        ax.scatter(read_requests_order, read_requests, color='black', s=5, label='read request')
+        ax.scatter(write_requests_order, write_requests, color='purple', s=5, label='write request')
+    else:
+        ax.scatter(read_requests_order, read_requests, marker='x', color='black', s=10, label='read request')
+        ax.scatter(write_requests_order, write_requests, marker='o', color='purple', s=10, label='write request')
+        ax.vlines(x=range(len(data)), ymin=data[:,0], ymax=data[:,0] + data[:,2] - 9, label='time between creation and service')
+        ax.vlines(x=range(len(data)), ymin=data[:,0] + data[:,2] - 9, ymax=data[:,0] + data[:,2], color='red', label='serviced by DRAM controller')
     # plt.plot(range(len(data)), data[:,0])
-    plt.xlabel('Arrival order in DRAM')
-    plt.ylabel('time (ns)')
-    plt.legend()
-    plt.savefig(f'pictures/arrival_times_plot/arrival_times_plot_{file_nr}_{stepsize}_{START_TIME}-{END_TIME}')
+    ax.set_xlabel('Request scheduling time by DRAM controller')
+    ax.set_ylabel('time (ns)')
+    ax.legend()
+    fig.subplots_adjust(left=0.17, bottom=0.1, right=0.95, top=0.95)
+    fig.savefig(f'pictures/arrival_times_plot/arrival_times_plot_{detailed}_{file_nr}_{stepsize}_{start_time}-{END_TIME}')
 
 if __name__ == '__main__':
     benchmark = 'parsec-bodytrack'
     num = 1
     file_nr = DATA_FILES[benchmark][num]
-    # data = retrieve_data(file_nr)
-    START_TIMEs = [21_100_000, 0]
-    end_times = [21_200_000, 1_000_000_000]
-    STEPSIZEs = [53, 1_000_000]
-    # plot_DRAM_throughputs(file_nr)
-    # for start in range(100_000_000, 1000_000_000, 100_000_000):
-    # START_TIME = 930_000_000
-    # START_TIME = 0
-    # STEPSIZE = 1_000
-    # END_TIME = -1
-    # END_TIME = 930_000_000
-    # START_TIME = 935_124_500
-    # END_TIME = 935_125_250
-    # END_TIME = 933_180_000
-    # plot_time_plot(file_nr)
-    plot_arrival_times(file_nr)
-    # plot_correlation(file_nr)
-    # for stepsize in [500, 1000, 5000, 10000]:
-        # STEPSIZE = stepsize
-    # data = retrieve_data(file_nr)
-    # print(data[:10])
-    # combined_through_lat_count(file_nr)
-    # STEPSIZE = 1_000_000
-    # START_TIME = 0
-    # END_TIME = -1
-    # combine_cores = False
-    # # plot_time_plot(file_nr, combine_cores)
-    # data1 = retrieve_data(125, True)
-    # print(data1[-1])
-    # data2 = retrieve_data(206, True)
-    # print(data2[-1])
-    # print(data1[:30] - data2[:30,:3])
 
+    # # Little's law plots
+    stepsize = 1_000_00
+    start_time = 0
+    end_time = -1
+    # plot_littles_law(file_nr, stepsize=stepsize, start_time=start_time, end_time=end_time)
+    plot_littles_law_per_type(file_nr, stepsize=stepsize, start_time=start_time, end_time=end_time)
 
+    # # No priority
+    # start_time = 900_040_000
+    # end_time = 900_300_000
+    # plot_arrival_times(file_nr, detailed=False, stepsize=stepsize, start_time=start_time, end_time=end_time)
 
+    # # Priority
+    # start_time = 932_533_200
+    # end_time = 932_600_000
+    # plot_arrival_times(file_nr, detailed=False, stepsize=stepsize, start_time=start_time, end_time=end_time)
 
+    # # Zoomed in on priority
+    # start_time = 932_533_200
+    # end_time = 932_534_000
+    # plot_arrival_times(file_nr, detailed=False, stepsize=stepsize, start_time=start_time, end_time=end_time)
 
+    # stepsize = 1_000_000
+    # start_time = 0
+    # end_time = -1
+    # plot_time_plot(file_nr, combine_cores=True)
+
+    # # one core time plot
+    # combine_cores = True
+    # stepsize = 1_000_000
+    # start_time = 0
+    # end_time = -1
+    # plot_time_plot(file_nr, combine_cores=combine_cores, only_throughput=True,
+    #                stepsize=stepsize, start_time=start_time, end_time=end_time)
 
 

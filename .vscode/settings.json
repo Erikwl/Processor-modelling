@@ -5,6 +5,11 @@
         "initializer_list": "c",
         "utility": "c",
         "vector": "cpp",
-        "tuple": "cpp"
+        "tuple": "cpp",
+        "iosfwd": "cpp",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "string": "cpp",
+        "iostream": "cpp"
     }
 }

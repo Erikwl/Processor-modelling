@@ -146,40 +146,52 @@ def mva(N, refs, visits, caps, service_times):
 
 
     for N_ in range(nr_of_states):
-
+        # print(f'{N_ = }\n')
         totalN_ = total_customers(N_)
         cur = N_
 
         for r, Nr in enumerate(N):
             Nr_ = cur % (Nr + 1)
             cur //= (Nr + 1)
+            if Nr_:
+                r_cus_removal = N_ - N_products[r]
 
-            r_cus_removal = N_ - N_products[r]
-
-            for i in Ms[r]:
-                ci = caps[i]
-                if Nr_:
+                for i in Ms[r]:
+                    ci = caps[i]
                     waits[i, r, N_] = 1 / (ci * mus[i]) * ( \
                         1 \
                         + nrs[i, r_cus_removal] \
                         + np.sum((ci - n - 1) * probs[i, n, r_cus_removal]
-                                 for n in range(1 + min(ci - 2, totalN_ - 1))))
-
-            if Nr_:
+                                    for n in range(1 + min(ci - 2, totalN_ - 1))))
+                    # print(r, r_cus_removal, nrs[i, r_cus_removal], np.sum((ci - n - 1) * probs[i, n, r_cus_removal]
+                        #             for n in range(1 + min(ci - 2, totalN_ - 1))),
+                        #   waits[i, r, N_])
                 throughputs[r, N_] = Nr_ / np.sum(visits[i,r] * waits[i,r,N_] for i in Ms[r])
-                # print('throughput ', r, throughputs[r,N_])
+                # print(throughputs[r, N_])
+                # for i in Ms[r]:
+                #     print(visits[i,r], waits[i,r,N_])
+                # print(Nr_, np.sum(visits[i,r] * waits[i,r,N_] for i in Ms[r]))
+                # print(f'throughputs {r} {throughputs[r,N_]}')
 
         for i in range(M):
             nrs[i,N_] = np.sum(visits[i,r] * throughputs[r,N_] * waits[i,r,N_] for r in Rs[i])
             utils[i,N_] = 1 / mus[i] * np.sum(throughputs[r,N_] * visits[i,r] for r in Rs[i])
-
+            # print(f'nrs {i} {nrs[i, N_]}')
+            # print(f'utils {i} {nrs[i, N_]}')
             ci = caps[i]
             probs_last = totalN_ if COMPLETE_PROBS else min(ci - 1, totalN_)
             for n in range(1, probs_last + 1):
                 # print(i, n, '\n')
-                probs[i,n,N_] = 1 / (min(n, ci) * mus[i]) \
-                    * np.sum(visits[i,r] * throughputs[r,N_] * probs[i,n - 1,N_ - N_products[r]]
-                             for r in Rs[i])
+                probs_sum = 0
+                for r in Rs[i]:
+                    if N_ - N_products[r] >= 0:
+                        probs_sum += visits[i,r] * throughputs[r,N_] * probs[i,n - 1,N_ - N_products[r]]
+
+                # probs[i,n,N_] = 1 / (min(n, ci) * mus[i]) \
+                #     * np.sum(visits[i,r] * throughputs[r,N_] * probs[i,n - 1,N_ - N_products[r]]
+                #              for r in Rs[i])
+                probs[i,n,N_] = 1 / (min(n, ci) * mus[i]) * probs_sum
+                # print(f'probs {i} {n} {probs[i,n,N_]}')
                 # r = 1
                 # print(N_ - N_products[r])
                 # print(probs[i,n - 1,N_ - N_products[r]])
@@ -190,6 +202,7 @@ def mva(N, refs, visits, caps, service_times):
             probs[i,0,N_] = 1 - 1 / ci * (
                 utils[i,N_] + np.sum((ci - n) * probs[i,n,N_] for n in range(1,1+min(ci-1,totalN_)))
             )
+            # print(f'sum {np.sum((ci - n) * probs[i,n,N_] for n in range(1,1+min(ci-1,totalN_)))}')
 
         # print(pop_vector(N_))
         # print(totalN_)
