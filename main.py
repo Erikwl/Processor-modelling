@@ -2,7 +2,8 @@ import numpy as np
 import sys
 import json
 from time import time as current_time
-from mva import mva
+from mva_c_version import mva as mva_fast
+from mva_py import mva as mva_slow
 
 from constants import *
 
@@ -40,13 +41,19 @@ def model(n, test_model=False):
 
 def time_execution(args):
     start = current_time()
-    mva(*args)
-    print(f'The mva algo took {(current_time() - start):.4f} s')
+    mva_slow(*args)
+    t_py = current_time() - start
+    print(f'The mva python algorithm took {(t_py):.4f} s')
+    start = current_time()
+    mva_fast(*args)
+    t_c =current_time() - start
+    print(f'The mva c++ algorithm took {(t_c):.4f} s')
+    print(f'This means that the c++ algorithm is {t_py / t_c :.2f} times faster')
+
 
 def verify_model():
     args = read_json('models/verification_model.json')
-    perf_measures = mva(*args)
-    # print(perf_measures)
+    perf_measures = mva_fast(*args)
     for i, name in enumerate(['numbers', 'waits', 'throughputs', 'utils', 'probs']):
         print(f'{name}: {perf_measures[i]}')
 

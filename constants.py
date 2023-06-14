@@ -2,16 +2,21 @@ RESULTS_PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/CoMeT/result
 PATH = '/home/erik/Documents/jaar3-bach/bachelorthesis/code/'
 ACCESS_DATA_PATH = PATH + 'data/dram_access_data/'
 
-DATA_FILES = {'parsec-blackscholes' : {1 : 128, 2 : 129, 3 : 130},
-              'parsec-bodytrack'    : {1 : 206, 2 : 126, 3 : 127},
-            #   'parsec-blackscholes' : {1 : 109, 2 : 110, 3 : 111},
-            #   'parsec-bodytrack'    : {1 : 112, 2 : 113, 3 : 114},
-              'parsec-dedup' : {1 : 132},
-              'parsec-fluidanimate' : {1 : 133},
-              'parsec-streamcluster' : {1 : 134},
-              'parsec-swaptions' : {1 : 135}}
+# DATA_FILES = {'parsec-blackscholes' : {1 : 128, 2 : 129, 3 : 130},
+#               'parsec-bodytrack'    : {1 : 206, 2 : 126, 3 : 127},
+#             #   'parsec-blackscholes' : {1 : 109, 2 : 110, 3 : 111},
+#             #   'parsec-bodytrack'    : {1 : 112, 2 : 113, 3 : 114},
+#               'parsec-dedup' : {1 : 132},
+#               'parsec-fluidanimate' : {1 : 133},
+#               'parsec-streamcluster' : {1 : 134},
+#               'parsec-swaptions' : {1 : 135}}
 
-DATA_PARALELLISM_FILES = {'parsec-bodytrack' : {1 : [206, 207, 208], 2: [209, 211], 3 : [210]}}
+DATA_FILES = {'parsec-blackscholes' : {1 : [128], 2 : [129], 3 : [130]},
+              'parsec-bodytrack' : {1 : [206, 207, 208], 2: [209, 211], 3 : [210]},
+              'parsec-dedup' : {1 : [132]},
+              'parsec-fluidanimate' : {1 : [133]},
+              'parsec-streamcluster' : {1 : [213, 214, 215], 2 : [216], 3 : [217]},
+              'parsec-swaptions' : {1 : [135]}}
 
 BENCHMARKS = [
             'parsec-blackscholes',

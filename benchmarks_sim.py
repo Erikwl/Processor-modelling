@@ -1,11 +1,7 @@
-# from benchmark_params import *
-# from constants import *
-# from data_retrieval import *
 import matplotlib.pyplot as plt
 import numpy as np
 from constants import *
 from benchmark_params import *
-from data_retrieval import *
 parallellisms = np.arange(1, 4)
 
 
@@ -81,19 +77,15 @@ def parallel_benchmarks_sim(file_nrs, n_clusters, stepsize=None):
         service_times.append(data_dict['service_times'])
 
     mva_cache = {}
-    # args_lst = [model(i) for i in range(len(file_nrs) + 1)]
     real_time = 0
 
     benchmark_response_times = {}
     executing_benchmarks = list(range(len(file_nrs)))
     current_benchmark_time_indices = np.zeros(len(file_nrs), dtype=int)
     current_predicted_clusters = np.array([predicted_clusters[f][0] for f in range(len(file_nrs))], dtype=np.int8)
-    # current_benchmark_times = np.zeros(len(file_nrs))
-    # next_benchmark_times = np.array([timestamps[f][1] for f in range(len(file_nrs))])
 
     remaining_benchmark_times = np.array([timestamps[f][1] for f in range(len(file_nrs))])
 
-    # args = args_lst[len(executing_benchmarks)]
     args = model(len(executing_benchmarks))
     args[0] = np.array([pops[f][current_benchmark_time_indices[f]] for f in executing_benchmarks], dtype=int)
     args[3][:-1] = np.array([caps[f][current_benchmark_time_indices[f]] for f in executing_benchmarks])
@@ -115,26 +107,13 @@ def parallel_benchmarks_sim(file_nrs, n_clusters, stepsize=None):
             args[4][executing_benchmarks] = np.array([service_times[f][current_benchmark_time_indices[f]] for f in executing_benchmarks])
             throughputs = mva(*args)[2]
             mva_cache[tuple(current_predicted_clusters)] = throughputs
-        # print(remaining_benchmark_times)
-        # print(model_throughputs)
-        # remaining_nr_requests = np.multiply(remaining_benchmark_times,
-        #                                     [model_throughputs[f][current_benchmark_time_indices[f]] for f in executing_benchmarks])
-        # print(current_benchmark_time_indices)
-        # print(remaining_nr_requests)
+
         required_times = np.divide(remaining_nr_requests, throughputs,
                                     out=np.copy(remaining_benchmark_times),
                                     where=throughputs!=0)
         min_required_time = np.min(required_times[executing_benchmarks])
         real_time += min_required_time
 
-        # if np.abs(real_time - 24153569.38919499) < 5000:
-        # if i % 100_000 < 3:
-        #     print(f'{int(real_time)}:\n{throughputs = }\n{current_predicted_clusters = }\n{current_benchmark_time_indices = }')
-        #     print(f'{remaining_nr_requests = }\n{remaining_benchmark_times = }')
-        # #     print(real_time, executing_benchmarks, throughputs, remaining_nr_requests, remaining_benchmark_times)
-        # i += 1
-
-        # for f, required_time, current_benchmark_time_index in zip(executing_benchmarks, required_times, current_benchmark_time_indices):
         for f in executing_benchmarks:
             required_time = required_times[f]
             current_benchmark_time_index = current_benchmark_time_indices[f]
@@ -167,8 +146,8 @@ def one_benchmark_parallellism_accuracy(benchmark, n_clusters, stepsize=None):
     modelled_response_times = []
     real_response_times = []
     for parallellism in parallellisms:
-        file_nrs = DATA_PARALELLISM_FILES[benchmark][1][:parallellism]
-        file_nr = DATA_FILES[benchmark][parallellism]
+        file_nrs = DATA_FILES[benchmark][1][:parallellism]
+        file_nr = DATA_FILES[benchmark][parallellism][0]
         data = retrieve_data(file_nr, combine_cores=True)
         real_response_times.append(data[-1,0] + data[-1,2])
 
@@ -176,12 +155,12 @@ def one_benchmark_parallellism_accuracy(benchmark, n_clusters, stepsize=None):
 
     return real_response_times, modelled_response_times
 
-def plot_different_n_clusters(benchmark, n_clusters_lst):
+def plot_different_n_clusters(benchmark, n_clusters_lst, stepsize):
     reals = []
     models = []
     for n_clusters in n_clusters_lst:
         print(f'{n_clusters = }')
-        real, model = one_benchmark_parallellism_accuracy(benchmark, n_clusters)
+        real, model = one_benchmark_parallellism_accuracy(benchmark, n_clusters, stepsize=stepsize)
         reals.append(real)
         models.append(model)
 
@@ -195,7 +174,7 @@ def plot_different_n_clusters(benchmark, n_clusters_lst):
     ax.legend()
     fig.savefig(f'pictures/one_benchmark_parallellism/one_benchmark_parallellism_{benchmark}_{n_clusters_lst}_{STEPSIZE}_{START_TIME}-{int(END_TIME)}')
 
-def plot_different_stepsizes(benchmark, stepsizes):
+def plot_different_stepsizes(benchmark, n_clusters, stepsizes):
     reals = []
     models = []
     n_clusters = 8
@@ -217,19 +196,14 @@ def plot_different_stepsizes(benchmark, stepsizes):
 
 
 if __name__ == '__main__':
-    # benchmarks = ['parsec-bodytrack', 'parsec-blackscholes']
-    # parallellisms = [3, 0]
-    # file_nrs = []
-    # for benchmark, parallellism in zip(benchmarks, parallellisms):
-    #     file_nrs.extend([DATA_FILES[benchmark][1]] * parallellism)
-    # n_clusters = 20
-    filename = 'constants.py'
-    linenumber = 39
-    benchmark = 'parsec-bodytrack'
+    benchmarks = ['parsec-bodytrack', 'parsec-streamcluster']
+    n_clusters = 8
+    stepsize = 100
     n_clusters_lst = [4, 6, 8, 10, 12]
     stepsizes = [100, 200, 500, 1000, 5000, 10000]
-    plot_different_stepsizes(benchmark, stepsizes)
-    plot_different_n_clusters(benchmark, n_clusters_lst)
+    for benchmark in benchmarks:
+        plot_different_stepsizes(benchmark, n_clusters, stepsizes)
+        plot_different_n_clusters(benchmark, n_clusters_lst, stepsize)
 
     # plt.plot([1,2,3], [4,5,6], '.', label='1')
     # plt.plot([1,2,3], [2,1,2], '.', label='2')

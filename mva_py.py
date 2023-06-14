@@ -11,7 +11,7 @@ import os
 # libname = pathlib.Path().absolute()
 
 # Load the shared library
-lib = ctypes.CDLL('./mva_c_lib.so')
+# lib = ctypes.CDLL('./mva_c_lib.so')
 
 # # Get all functions from the library
 # functions = [attr for attr in dir(mva_c_lib) if callable(getattr(mva_c_lib, attr))]
@@ -88,7 +88,8 @@ lib = ctypes.CDLL('./mva_c_lib.so')
 #     # Call the C++ function
 #     return lib.mva_c(mva_object, N_arr, refs_arr, visits_arr, caps_arr, service_times_arr)
 
-def mva(N, refs, visits, caps, service_times):
+def mva(N, refs, visits, caps, service_times, complete_probs=COMPLETE_PROBS):
+    print('Warning: the slow mva function is called')
     mus = 1 / service_times
     if len(mus) != len(visits) or len(mus) != len(caps):
         print(f'error: {len(mus) = }, {len(visits) = }, {len(caps) = }')
@@ -110,10 +111,12 @@ def mva(N, refs, visits, caps, service_times):
     # Mean number of customers for population vector N_ at center i.
     nrs = np.zeros((M, nr_of_states))
     utils = np.zeros((M, nr_of_states))
-    if COMPLETE_PROBS:
-        probs = np.zeros((M, np.sum(N) + 1, nr_of_states))
-    else:
-        probs = np.zeros((M, min(np.sum(N) + 1, max(caps)), nr_of_states))
+    probs_size = np.sum(N) + 1
+    if complete_probs == False:
+        probs_size = min(max(caps), probs_size)
+    # else:
+    #     probs = np.zeros((M, min(np.sum(N) + 1, max(caps)), nr_of_states))
+    probs = np.zeros((M, probs_size, nr_of_states))
     waits = np.zeros((M, R, nr_of_states))
     throughputs = np.zeros((R, nr_of_states))
 
@@ -179,8 +182,11 @@ def mva(N, refs, visits, caps, service_times):
             # print(f'nrs {i} {nrs[i, N_]}')
             # print(f'utils {i} {nrs[i, N_]}')
             ci = caps[i]
-            probs_last = totalN_ if COMPLETE_PROBS else min(ci - 1, totalN_)
-            for n in range(1, probs_last + 1):
+            probs_size = totalN_ + 1
+            if complete_probs == False:
+                probs_size = min(ci, probs_size)
+            # probs_last = totalN_ if complete_probs else min(ci - 1, totalN_)
+            for n in range(1, probs_size):
                 # print(i, n, '\n')
                 probs_sum = 0
                 for r in Rs[i]:

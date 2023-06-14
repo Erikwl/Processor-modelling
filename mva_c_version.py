@@ -5,7 +5,7 @@ import numpy as np
 
 lib = cdll.LoadLibrary('./mva_c.so')
 lib.Mva_new.restype = c_void_p
-lib.Mva_new.argtypes = [c_int, c_int, c_int]
+lib.Mva_new.argtypes = [c_int, c_int, c_int, c_bool]
 
 lib.N_set.restype = None
 lib.refs_set.restype = None
@@ -34,12 +34,14 @@ lib.probs_get.argtypes = [c_void_p, c_int, c_int]
 lib.compute.restype = None
 lib.compute.argtypes = [c_void_p]
 
-def mva(N, refs, visits, caps, service_times):
+def mva(N, refs, visits, caps, service_times, complete_probs=False):
     # Convert Python lists to C++ vectors
     R = len(N)
     M = len(visits)
-    probs_size = min(np.sum(N) + 1, max(caps))
-    mva_c = lib.Mva_new(c_int(R), c_int(M), c_int(probs_size))
+    probs_size = np.sum(N) + 1
+    if complete_probs == False:
+        probs_size = min(max(caps), probs_size)
+    mva_c = lib.Mva_new(c_int(R), c_int(M), c_int(probs_size), c_bool(complete_probs))
     for i, x in enumerate(N):
         lib.N_set(mva_c, c_int(i), c_int(x))
 
@@ -65,34 +67,3 @@ def mva(N, refs, visits, caps, service_times):
     probs = np.array([[lib.probs_get(mva_c, i, j) for j in range(probs_size)] for i in range(M)])
 
     return [nrs, waits, throughputs, utils, probs]
-
-    # return [[] for _ in range(5)]
-    # N_arr = (c_int * len(N))(*N)
-    # refs_arr = (c_int * len(refs))(*refs)
-    # visits_arr = (POINTER(c_double) * len(visits))()
-    # for i, sublist in enumerate(visits):
-    #     visits_arr[i] = (c_double * len(sublist))(*sublist)
-    # caps_arr = (c_int * len(caps))(*caps)
-    # service_times_arr = (c_double * len(service_times))(*service_times)
-
-    # print(type(N_arr))
-    # print(type(refs_arr))
-    # print(type(visits_arr))
-    # print(type(caps_arr))
-    # print(type(service_times_arr))
-
-    # N_arr = cast(N_arr, POINTER(c_int))
-    # refs_arr = cast(refs_arr, POINTER(c_double))
-    # # visits_arr = cast(visits_arr, POINTER(POINTER(visits)))
-    # caps_arr = cast(caps_arr, POINTER(c_int))
-    # service_times_arr = cast(service_times_arr, POINTER(c_double))
-
-    # print('\n')
-    # print(type(N_arr))
-    # print(type(refs_arr))
-    # print(type(visits_arr))
-    # print(type(caps_arr))
-    # print(type(service_times_arr))
-
-    # Call the C++ function
-    # return lib.mva_c(mva_object, N_arr, refs_arr, visits_arr, caps_arr, service_times_arr)
