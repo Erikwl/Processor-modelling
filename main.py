@@ -28,7 +28,7 @@ def model(n, test_model=False):
     refs = np.ones(n, dtype=int) * n
     visits = np.eye(n + 1, n)
     service_times = np.zeros(n + 1)
-    caps = np.zeros(n + 1, dtype=int)
+    caps = np.ones(n + 1, dtype=int)
 
     visits[-1] = np.ones(n)
     caps[-1] = CAP_MEM

@@ -22,13 +22,15 @@ def plot_0_on_1_influence():
     core1_id = 1
 
     pops1 = range(1, 5, 1)
+    # pops1 = [2]
     caps0 = range(1, 10, 1)
 
     x_vals = {N1 : [] for N1 in pops1}
 
     wait0_y_vals = {N1 : [] for N1 in pops1}
-    wait1_y_vals = {N1 : [] for N1 in pops1}
+    throughput0_y_vals = {N1 : [] for N1 in pops1}
 
+    wait1_y_vals = {N1 : [] for N1 in pops1}
     nrs1_y_vals = {N1 : [] for N1 in pops1}
     throughput1_y_vals = {N1 : [] for N1 in pops1}
     for N1 in pops1:
@@ -72,44 +74,59 @@ def plot_0_on_1_influence():
             waits, throughputs = mva(*args)[1:3]
             nrs1 = throughputs[core1_id] * waits[-1,core1_id]
 
-
             if fN0 < 10:
                 x_vals[N1].append(cap0)
                 wait0_y_vals[N1].append(waits[-1][core0_id])
-                wait1_y_vals[N1].append(waits[-1][core1_id])
+                throughput0_y_vals[N1].append(throughputs[0])
 
+                wait1_y_vals[N1].append(waits[-1][core1_id])
                 nrs1_y_vals[N1].append(nrs1)
                 throughput1_y_vals[N1].append(throughputs[1])
             else:
                 break
 
 
-    y_vals_lst = [wait0_y_vals, wait1_y_vals, nrs1_y_vals, throughput1_y_vals]
-    ylabels = ['time (ns)', 'time (ns)', 'average number', 'throughput (per ns)']
-    titles = ['Waiting time of core 0 requests',
-              'Waiting time of core 1 requests',
-              'Average number of core 1 requests',
-              'Throughput of core 1 requests']
-    ylabels = [r'$\overline{w}_{M,0}$',
-              r'$\overline{w}_{M,1}$',
-              r'$\overline{n}_{M,1}$',
-              r'$\overline{x}_{M,1}$']
+    # y_vals_lst = [wait0_y_vals, wait1_y_vals, nrs1_y_vals, throughput1_y_vals]
+    # ylabels = ['time (ns)', 'time (ns)', 'average number', 'throughput (per ns)']
+    # titles = ['Waiting time of core 0 requests',
+    #           'Waiting time of core 1 requests',
+    #           'Average number of core 1 requests',
+    #           'Throughput of core 1 requests']
+    # ylabels = [r'$\overline{w}_{M,0}$',
+    #           r'$\overline{w}_{M,1}$',
+    #           r'$\overline{n}_{M,1}$',
+    #           r'$\overline{x}_{M,1}$']
+    # y_vals_lst = [wait0_y_vals, throughput1_y_vals, wait1_y_vals]
+
+    ylabels = [r'$\overline{w}_{M,0}$', r'$\overline{x}_{M,0}$', r'$\overline{w}_{M,1}$', r'$\overline{x}_{M,1}$']
+    # titles = ['Core 0', 'Core 1', 'Core 1']
+    titles = ['Core 0', 'Core 0', 'Core 1', 'Core 1']
+    # ylabels = ['DRAM doorvoer', 'DRAM wachttijd (ns)','DRAM doorvoer', 'DRAM wachttijd (ns)']
+    y_vals_lst = [throughput0_y_vals, wait0_y_vals,
+                  throughput1_y_vals, wait1_y_vals]
 
     for i, (y_vals, ylabel, title) in enumerate(zip(y_vals_lst, ylabels, titles), start=1):
-        fig = plt.figure(figsize=(6,6), dpi=150)
-        # ax = fig.add_subplot(int(f'22{i}'))
+        fig = plt.figure(figsize=(4,3), dpi=150)
+        # if i == 1:
+        #     ax = fig.add_subplot(int(f'21{i}'))
+        # else:
+        ax = fig.add_subplot(1, 1, 1)
         for N1 in pops1:
-            plt.plot(x_vals[N1], y_vals[N1], label=rf'$N_1 = {N1}$')
-            plt.xlabel('Core 0 capacity')
-            # plt.title(title)
-            plt.ylabel(ylabel)
-            if i == 2:
-                plt.legend()
+            ax.plot(x_vals[N1], y_vals[N1], label=rf'$N_1 = {N1}$')
+            ax.set_xlabel(r'$C_0$')
+            if i == 1:
+                ax.set_ylim((0.05, 0.1))
+            # ax.set_title(title)
+            ax.set_ylabel(ylabel)
+        if i == 2:
+            ax.legend()
 
-        # fig.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.9)
-        plt.tight_layout()
-        # plt.legend()
-        plt.savefig(f'pictures/0_on_1_influence_{i}.png')
+        fig.subplots_adjust(left=0.2, bottom=0.15, right=0.95, top=0.95)
+        # fig.tight_layout()
+        # ax.legend()
+        fig.savefig(f'pictures/0_on_1_influence_{i}.png')
+
+    # plt.savefig(f'pictures/0_on_1_influence.png')
 
 def plot_cap0_pop0_dynamics():
     args = model(2, test_model=True)
@@ -172,20 +189,22 @@ def plot_cap0_pop0_dynamics():
     titles = [f'required core service time',
               f'DRAM waiting time for core 0.']
 
-    y_labels = [r'$\left(\widetilde{\mu}_i(C_0, N_0)\right)^{-1}$',
+    y_labels = [r'$\left(\widetilde{\mu}_0\right)^{-1}$',
                 r'$\overline{w}_{M,0}$']
+    # y_labels = ['servicetijd (ns)',
+    #             'DRAM wachttijd (ns)']
 
     for i, (y_vals, y_label, title) in enumerate(zip(y_vals_lst, y_labels, titles), start=1):
         fig = plt.figure(figsize=(4,4), dpi=150)
-        # ax = fig.add_subplot(int(f'21{i}'))
+        ax = fig.add_subplot(1, 1, 1)
         if i == 2:
-            plt.hlines(y=[WAIT0], xmin=[0], xmax=[pops0[-1]], linestyles='--', label='desired DRAM waiting time')
-        for cap0 in caps0:
-            plt.plot(x_vals[cap0], y_vals[cap0], label=rf'$C_0 = {cap0}$')
-            plt.xlabel(r'$N_0$')
-            plt.ylabel(y_label)
-            # plt.title(title)
-            plt.legend()
+            ax.hlines(y=[WAIT0], xmin=[0], xmax=[pops0[-1]], linestyles='--', label='measured DRAM access latency')
+        for j, cap0 in enumerate(caps0):
+            ax.plot(x_vals[cap0], y_vals[cap0], marker=MARKERS[j], label=rf'$C_0 = {cap0}$')
+            ax.set_xlabel(r'$N_0$')
+            ax.set_ylabel(y_label)
+            # ax.title(title)
+            ax.legend()
 
 
         # fig.subplots_adjust(left=0.1, bottom=0.15, right=0.95, top=0.9)
@@ -205,9 +224,9 @@ def plot_cap0_pop0_dynamics():
 
     for i, (vec, x_vals, y_vals, title) in enumerate(zip(differences, x_vals_lst, y_vals_lst, titles), start=1):
         fig = plt.figure(figsize=(8,3), dpi=150)
-        plt.bar(np.array(x_vals[0]) - bar_width / 2, y_vals[0], width=bar_width, align='center', alpha=0.5, label=rf'$C_0 = {vec[0][0]}$, $N_0 = {vec[0][1]}$')
-        plt.bar(np.array(x_vals[1]) + bar_width / 2, y_vals[1], width=bar_width, align='center', alpha=0.5, label=f'$C_0 = {vec[1][0]}$, $N_0 = {vec[1][1]}$')
-        plt.vlines(CAP_MEM, [0], [max(max(y_vals[0]), max(y_vals[1]))], linestyles='--', label='DRAM controller capacity')
+        plt.bar(np.array(x_vals[0]) - bar_width / 2, y_vals[0], color='black', fill=True, width=bar_width, align='center', label=rf'$C_0 = {vec[0][0]}$, $N_0 = {vec[0][1]}$')
+        plt.bar(np.array(x_vals[1]) + bar_width / 2, y_vals[1], fill=False, width=bar_width, align='center', label=f'$C_0 = {vec[1][0]}$, $N_0 = {vec[1][1]}$')
+        plt.vlines(CAP_MEM + 0.5, [0], [max(max(y_vals[0]), max(y_vals[1]))], colors='black', linestyles='--', label='DRAM controller capacity')
         plt.legend()
         plt.xlabel('Number of requests in DRAM')
         plt.ylabel('Probability')

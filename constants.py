@@ -11,12 +11,40 @@ ACCESS_DATA_PATH = PATH + 'data/dram_access_data/'
 #               'parsec-streamcluster' : {1 : 134},
 #               'parsec-swaptions' : {1 : 135}}
 
-DATA_FILES = {'parsec-blackscholes' : {1 : [128], 2 : [129], 3 : [130]},
+# DATA_FILES = {'parsec-blackscholes' : {1 : [128], 2 : [129], 3 : [130]},
+#               'parsec-bodytrack' : {1 : [206, 207, 208], 2: [209, 211], 3 : [210]},
+#               'parsec-dedup' : {1 : [132]},
+#               'parsec-fluidanimate' : {1 : [133]},
+#               'parsec-streamcluster' : {1 : [213, 214, 215], 2 : [216], 3 : [217]},
+#               'parsec-swaptions' : {1 : [135]},
+#               'parsec-bodytrack,parsec-streamcluster' : {(2,2) : 236}}
+
+DATA_FILES = {'parsec-blackscholes' : {1 : [226, 227]},
+              'parsec-blackscholes,parsec-bodytrack' : {(1, 2) : [223], (2, 2) : [225]},
+              'parsec-blackscholes,parsec-streamcluster' : {(1, 2) : [241], (2, 2) : [242]},
+
+              'parsec-fluidanimate' : {1 : [234, 235]},
+              'parsec-fluidanimate,parsec-bodytrack' : {(1, 2) : [232], (2, 2) : [233]},
+              'parsec-fluidanimate,parsec-streamcluster' : {(1, 2) : [245], (2, 2) : [246]},
+
+              'parsec-swaptions' : {1 : [231, 230]},
+              'parsec-swaptions,parsec-bodytrack' : {(1, 2) : [228], (2, 2) : [229]},
+              'parsec-swaptions,parsec-streamcluster' : {(1, 2) : [243], (2, 2) : [244]},
+
+              'parsec-dedup' : {1 : [132, 247], 2 : [248]},
+
               'parsec-bodytrack' : {1 : [206, 207, 208], 2: [209, 211], 3 : [210]},
-              'parsec-dedup' : {1 : [132]},
-              'parsec-fluidanimate' : {1 : [133]},
+
               'parsec-streamcluster' : {1 : [213, 214, 215], 2 : [216], 3 : [217]},
-              'parsec-swaptions' : {1 : [135]}}
+
+              'parsec-bodytrack,parsec-streamcluster' : {(2, 2) : [236]}}
+
+NUM_CORES_USED = {'parsec-blackscholes' : 2,
+                  'parsec-bodytrack' : 3,
+                  'parsec-dedup' : 4,
+                  'parsec-fluidanimate' : 2,
+                  'parsec-streamcluster' : 2,
+                  'parsec-swaptions' : 2}
 
 BENCHMARKS = [
             'parsec-blackscholes',
@@ -41,6 +69,8 @@ BENCHMARKS = [
             'splash2-lu.ncont',
             'splash2-radix'
             ]
+
+MARKERS = ['.', '1', '*', 'x', 'v', 'd']
 
 # DRAM data constants
 STEPSIZE = 1000
